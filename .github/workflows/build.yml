@@ -97,73 +97,6 @@ jobs:
       with:
         name: server-manager-windows-debug
         path: ./server-manager.zip
-    
-  build-ubuntu-18:
-    runs-on: ubuntu-latest
-    container:
-      image: ubuntu:18.04
-      env:
-        npm_config_cache: ./.npm-cache
-        PKG_CACHE_PATH: ./.pkg-cache
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install build tools
-      run: |
-        apt-get update && \
-        apt-get install -y \
-          make \
-          python3 \
-          python \
-          build-essential \
-          libvorbisenc2 \
-          liblzo2-dev \
-          libvorbisfile3 \
-          libuchardet-dev \
-          curl \
-          zip \
-        && \
-        chmod -R 777 . && \
-        chown -R 777 "/github/home"
-
-    - name: Use Node.js
-      uses: actions/setup-node@v1
-      with:
-        node-version: '16.x'
-    
-    - name: download mikeros tools
-      # uses: arma-actions/mikero-tools@latest
-      run: |
-        mkdir -p /opt/mikero-tools
-        curl -fsSL "https://raw.githubusercontent.com/arma-actions/mikero-tools/latest/linux/depbo-tools-0.9.13-linux-amd64.tgz" -o depbo-tools.tgz
-        tar -zxf depbo-tools.tgz --strip-components=1 -C /opt/mikero-tools
-
-        echo "Updating environment variables"
-        echo "/opt/mikero-tools/bin" >> $GITHUB_PATH
-        echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/mikero-tools/lib" >> $GITHUB_ENV
-    
-    - name: Install deps
-      run: npm ci
-    - name: Install ui deps
-      run: npm run install:ui
-    
-    - name: Set version
-      if: startsWith(github.ref, 'refs/tags/v')
-      run: npm version ${{ github.ref_name }}
-
-    - name: Build
-      run: npm run build
-
-    - name: Pack (ubuntu-18)
-      run: npm run pack:linux
-    - name: Zip Artifacts (ubuntu-18)
-      run: zip -r server-manager.zip build/*
-    - name: Archive build artifacts (ubuntu-18)
-      uses: actions/upload-artifact@v4
-      with:
-        name: server-manager-ubuntu-18
-        path: ./server-manager.zip
 
   build-ubuntu-latest:
     runs-on: ubuntu-latest
@@ -275,18 +208,6 @@ jobs:
         BRANCH_NAME="${PATHS[1]}_${PATHS[2]}"
         echo $BRANCH_NAME
         echo "BRANCH=$(echo ${BRANCH_NAME})" >> $GITHUB_ENV
-    
-    - name: Create the Badge
-      uses: schneegans/dynamic-badges-action@v1.6.0
-      if: contains('refs/heads/master refs/heads/experimental', github.ref)
-      with:
-        auth: ${{ secrets.GIST_SECRET }}
-        gistID: 442a5cdea03dd79a87b34339a7a16a2c
-        filename: dayz-server-manager__${{ env.BRANCH }}.json
-        label: Test Coverage
-        message: ${{ env.COVERAGE }}
-        color: green
-        namedLogo: typescript
   
   release:
     runs-on: ubuntu-latest
@@ -295,7 +216,6 @@ jobs:
 
     needs:
     - test
-    - build-ubuntu-18
     - build-ubuntu-latest
     - build-windows
     - build-windows-debug
@@ -351,26 +271,6 @@ jobs:
         asset_path: ./server-manager-windows-debug.zip
         asset_name: server-manager-windows-debug.zip
         asset_content_type: application/zip
-
-    - name: Download artifacts (ubuntu 18)
-      uses: actions/download-artifact@v4
-      with:
-        name: server-manager-ubuntu-18
-
-    - name: Rename
-      run: |
-        mv server-manager.zip server-manager-ubuntu-18.zip
-
-    - name: Upload Release Asset (Ubuntu 18)
-      id: upload-release-asset-ubuntu-18
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./server-manager-ubuntu-18.zip
-        asset_name: server-manager-ubuntu-18.zip
-        asset_content_type: application/zip 
 
     - name: Download artifacts (ubuntu latest)
       uses: actions/download-artifact@v4
