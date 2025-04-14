@@ -723,7 +723,6 @@ export class RCON extends IStatefulService {
                 } else {
                     this.loggedIn = packet.login;
                     this.log.log(LogLevel.IMPORTANT, 'Log-In Successful. RCON Connected');
-                    void this.command('say -1 Big Brother Connected.');
                     this.startKeepAlive();
                 }
                 break;

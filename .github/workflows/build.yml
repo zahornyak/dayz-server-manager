@@ -45,7 +45,7 @@ jobs:
       run: powershell Compress-Archive -Path 'build/*' -DestinationPath 'server-manager.zip'
     
     - name: Archive build artifacts (windows)
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: server-manager-windows
         path: ./server-manager.zip
@@ -93,7 +93,7 @@ jobs:
       run: powershell Compress-Archive -Path 'build/*' -DestinationPath 'server-manager.zip'
     
     - name: Archive build artifacts (windows)
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: server-manager-windows-debug
         path: ./server-manager.zip
@@ -160,7 +160,7 @@ jobs:
     - name: Zip Artifacts (ubuntu-18)
       run: zip -r server-manager.zip build/*
     - name: Archive build artifacts (ubuntu-18)
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: server-manager-ubuntu-18
         path: ./server-manager.zip
@@ -199,7 +199,7 @@ jobs:
     - name: Zip Artifacts (ubuntu latest)
       run: zip -r server-manager.zip build/*
     - name: Archive build artifacts (ubuntu latest)
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: server-manager-ubuntu-latest
         path: ./server-manager.zip
