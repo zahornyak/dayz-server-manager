@@ -17,7 +17,7 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Use Node.js
       uses: actions/setup-node@v1
       with:
@@ -53,7 +53,7 @@ jobs:
   build-windows-debug:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Use Node.js
       uses: actions/setup-node@v1
       with:
@@ -107,7 +107,7 @@ jobs:
         PKG_CACHE_PATH: ./.pkg-cache
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Install build tools
       run: |
@@ -169,7 +169,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Install build tools
       run: sudo apt-get install -y make python3 build-essential
@@ -215,7 +215,7 @@ jobs:
     - build-ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Download artifacts (ubuntu latest)
       uses: actions/download-artifact@v2
@@ -249,7 +249,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Use Node.js
       uses: actions/setup-node@v1
       with:
