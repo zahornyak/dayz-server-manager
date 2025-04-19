@@ -10,6 +10,19 @@ import WordArray from 'crypto-js/lib-typedarrays';
 import Base64 from 'crypto-js/enc-base64';
 import bigInt from 'big-integer';
 
+// Add TypeScript declaration for geoip2
+declare global {
+    interface Window {
+        geoip2: {
+            country: (
+                success: (response: any) => void,
+                error: (error: any) => void,
+                options: { ipAddress: string }
+            ) => void;
+        };
+    }
+}
+
 // Simple enum for log levels
 enum LogLevel {
     DEBUG = 0,
@@ -680,7 +693,7 @@ export class PlayersService {
             '192.168.1.1': 'LN', // local network
             '8.8.8.8': 'US', // Google DNS
             '1.1.1.1': 'US', // Cloudflare
-            '94.231.79.10': 'RU' // Russian IP (as per example)
+            '94.231.79.10': 'UA' // Ukraine IP (as per example)
         };
 
         if (knownIps[cleanedIp]) {
@@ -690,66 +703,58 @@ export class PlayersService {
         }
 
         try {
-            // Use JSONP approach for ip-api.com which is more browser-friendly
-            // and bypasses CORS restrictions
-            console.log(`DIRECT: 🔍 Using JSONP approach for ${cleanedIp}...`);
-            
+            // Ensure geoip2 library is loaded
+            if (!window.geoip2) {
+                console.log('DIRECT: Loading geoip2 library...');
+                await this.loadGeoIP2Library();
+            }
+
             return new Promise((resolve) => {
-                // Create a unique callback name
-                const callbackName = 'ipLookup_' + Math.floor(Math.random() * 1000000);
+                console.log(`DIRECT: Using geoip2 for ${cleanedIp}...`);
                 
-                // Define the callback function that will be called by the JSONP response
-                window[callbackName] = (response) => {
-                    console.log(`DIRECT: JSONP response for ${cleanedIp}:`, response);
-                    
-                    let country = 'Unknown'; // Default to unknown
-                    
-                    if (response && response.country) {
-                        // Get the two-letter country code
-                        country = response.countryCode || this.getCountryCodeFromName(response.country);
-                        console.log(`DIRECT: ✅ Found country ${country} for IP ${cleanedIp}`);
-                    } else {
-                        console.log(`DIRECT: ❌ No country data in response for ${cleanedIp}`);
-                    }
-                    
-                    // Cache the result
-                    this.countryCache.set(cleanedIp, country);
-                    
-                    // Clean up - remove the script tag and global callback
-                    const scriptElement = document.getElementById('jsonp_' + callbackName);
-                    if (scriptElement) {
-                        document.head.removeChild(scriptElement);
-                    }
-                    delete window[callbackName];
-                    
-                    // Return the result
-                    resolve(country);
-                };
+                // Set a timeout for the entire operation
+                const timeoutId = setTimeout(() => {
+                    console.log(`DIRECT: ⏱️ geoip2 lookup timed out for ${cleanedIp}`);
+                    this.countryCache.set(cleanedIp, 'Unknown');
+                    resolve('Unknown');
+                }, 5000);
                 
-                // Set a timeout in case the API doesn't respond
-                setTimeout(() => {
-                    // If the callback hasn't been called yet, clean up and resolve with Unknown
-                    if (window[callbackName]) {
-                        console.log(`DIRECT: ⏱️ JSONP request timed out for ${cleanedIp}`);
-                        this.countryCache.set(cleanedIp, 'Unknown');
-                        
-                        // Clean up
-                        const scriptElement = document.getElementById('jsonp_' + callbackName);
-                        if (scriptElement) {
-                            document.head.removeChild(scriptElement);
-                        }
-                        delete window[callbackName];
-                        
-                        resolve('Unknown');
-                    }
-                }, 5000); // 5 second timeout
-                
-                // Create and add the script tag
-                const script = document.createElement('script');
-                script.id = 'jsonp_' + callbackName;
-                // Use the JSONP endpoint with our callback
-                script.src = `https://extreme-ip-lookup.com/json/${cleanedIp}?callback=${callbackName}`;
-                document.head.appendChild(script);
+                try {
+                    // Use geoip2 country lookup
+                    window.geoip2.country(
+                        // Success callback
+                        (response) => {
+                            clearTimeout(timeoutId);
+                            console.log(`DIRECT: geoip2 response for ${cleanedIp}:`, response);
+                            
+                            let country = 'Unknown';
+                            if (response && response.country && response.country.isoCode) {
+                                country = response.country.isoCode;
+                                console.log(`DIRECT: ✅ Found country ${country} for IP ${cleanedIp}`);
+                            } else {
+                                console.log(`DIRECT: ❌ No country data in geoip2 response for ${cleanedIp}`);
+                            }
+                            
+                            // Cache the result
+                            this.countryCache.set(cleanedIp, country);
+                            resolve(country);
+                        },
+                        // Error callback
+                        (error) => {
+                            clearTimeout(timeoutId);
+                            console.error(`DIRECT: ❌ geoip2 lookup error for ${cleanedIp}`, error);
+                            this.countryCache.set(cleanedIp, 'Unknown');
+                            resolve('Unknown');
+                        },
+                        // Options - with the IP to look up
+                        { ipAddress: cleanedIp }
+                    );
+                } catch (innerError) {
+                    clearTimeout(timeoutId);
+                    console.error(`DIRECT: ❌ Error calling geoip2 API for ${cleanedIp}`, innerError);
+                    this.countryCache.set(cleanedIp, 'Unknown');
+                    resolve('Unknown');
+                }
             });
         } catch (error) {
             console.error(`DIRECT: ❌ Error in IP lookup for ${cleanedIp}`, error);
@@ -758,6 +763,29 @@ export class PlayersService {
             this.countryCache.set(cleanedIp, 'Unknown');
             return 'Unknown';
         }
+    }
+    
+    // Helper to load the geoip2 library dynamically
+    private loadGeoIP2Library(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (window.geoip2) {
+                resolve();
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = 'https://geoip-js.com/js/apis/geoip2/v2.1/geoip2.js';
+            script.onload = () => {
+                console.log('DIRECT: geoip2 library loaded successfully');
+                resolve();
+            };
+            script.onerror = (error) => {
+                console.error('DIRECT: Failed to load geoip2 library', error);
+                reject(error);
+            };
+            document.head.appendChild(script);
+        });
     }
     
     // Helper to validate IP format
@@ -784,7 +812,6 @@ export class PlayersService {
         const countryMap: Record<string, string> = {
             'United States': 'US',
             'United Kingdom': 'GB',
-            'Russia': 'RU',
             'Germany': 'DE',
             'France': 'FR',
             'Italy': 'IT',
