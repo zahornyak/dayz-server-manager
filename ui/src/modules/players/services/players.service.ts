@@ -10,6 +10,64 @@ import WordArray from 'crypto-js/lib-typedarrays';
 import Base64 from 'crypto-js/enc-base64';
 import bigInt from 'big-integer';
 
+// Simple enum for log levels
+enum LogLevel {
+    DEBUG = 0,
+    INFO = 1,
+    IMPORTANT = 2,
+    WARN = 3,
+    ERROR = 4
+}
+
+// Log level names for display
+const LogLevelNames = [
+    'DEBUG    ',
+    'INFO     ',
+    'IMPORTANT',
+    'WARN     ',
+    'ERROR    '
+];
+
+// Simple logger implementation for the UI
+class Logger {
+    public readonly MAX_CONTEXT_LENGTH = 12;
+    private context: string;
+
+    constructor(context: string) {
+        this.context = context;
+    }
+
+    private formatContext(context: string): string {
+        if (context.length <= this.MAX_CONTEXT_LENGTH) {
+            return context.padEnd(this.MAX_CONTEXT_LENGTH, ' ');
+        }
+        return context.slice(0, this.MAX_CONTEXT_LENGTH);
+    }
+
+    public log(level: LogLevel, msg: string, ...data: any[]): void {
+        const date = new Date().toISOString();
+        const fmt = `@${date} | ${LogLevelNames[level]} | ${this.formatContext(this.context)} | ${msg}`;
+
+        switch (level) {
+            case LogLevel.DEBUG:
+                console.log(fmt, ...data);
+                break;
+            case LogLevel.INFO:
+                console.log(fmt, ...data);
+                break;
+            case LogLevel.IMPORTANT:
+                console.log(`%c${fmt}`, 'font-weight: bold', ...data);
+                break;
+            case LogLevel.WARN:
+                console.warn(fmt, ...data);
+                break;
+            case LogLevel.ERROR:
+                console.error(fmt, ...data);
+                break;
+        }
+    }
+}
+
 export interface MergedPlayer {
     beguid: string;
     id?: string;
@@ -102,6 +160,9 @@ export class PlayersService {
 
     // Cache for IP to country lookups to minimize API calls
     private countryCache = new Map<string, string>();
+    
+    // Logger instance
+    private log: Logger = new Logger('PlayersService');
 
     public async loadLists(): Promise<void> {
         this.bans = await this.readBanTxt().toPromise().catch(() => []).then((x) => new Set(x));
@@ -144,6 +205,12 @@ export class PlayersService {
 
         this._search$.next();
 
+        // Subscribe to global refresh events and refresh countries
+        const originalTriggerUpdate = this.appCommon.triggerUpdate;
+        this.appCommon.triggerUpdate = () => {
+            originalTriggerUpdate.call(this.appCommon);
+            setTimeout(() => this.refreshCountries(), 500); // Delay to allow data to load first
+        };
     }
 
     protected async listenToPlayerChanges(): Promise<void> {
@@ -271,9 +338,10 @@ export class PlayersService {
                 if (player) {
                     player.country = country;
                     this.knownPlayers.set(rconPlayer.beguid, player);
+                    this.log.log(LogLevel.DEBUG, `Updated player ${player.name} with country ${country}`);
                 }
             }).catch(error => {
-                console.error('Error fetching country from IP:', error);
+                this.log.log(LogLevel.ERROR, `Error fetching country for IP ${rconPlayer.ip}`, error);
             });
         }
         
@@ -480,29 +548,152 @@ export class PlayersService {
     }
 
     // Helper method to get country from IP
-    private async getCountryFromIp(ip: string): Promise<string> {
-        // Check cache first
-        if (this.countryCache.has(ip)) {
-            return this.countryCache.get(ip)!;
+    private async getCountryFromIp(ip: string, forceRefresh = false): Promise<string> {
+        if (!ip) {
+            this.log.log(LogLevel.ERROR, `Empty IP provided for country lookup`);
+            return 'Unknown';
+        }
+
+        // Clean IP by splitting at colon and taking first part (to remove port)
+        const cleanedIp = ip.split(':')[0];
+        
+        if (!this.isValidIpFormat(cleanedIp)) {
+            this.log.log(LogLevel.ERROR, `Invalid IP format: ${cleanedIp}`);
+            return 'Invalid IP';
+        }
+
+        this.log.log(LogLevel.DEBUG, `Looking up country for IP: ${cleanedIp}`);
+
+        // Check cache first if not forcing refresh
+        if (!forceRefresh && this.countryCache.has(cleanedIp)) {
+            this.log.log(LogLevel.DEBUG, `Cache hit for ${cleanedIp}: ${this.countryCache.get(cleanedIp)}`);
+            return this.countryCache.get(cleanedIp)!;
         }
 
         try {
             // Using ipapi.co which provides HTTPS
-            const response = await fetch(`https://ipapi.co/${ip}/country/`);
-            const data = await response.text();
-            let country = 'Unknown';
+            this.log.log(LogLevel.DEBUG, `Trying ipapi.co for ${cleanedIp}`);
+            const response = await fetch(`https://ipapi.co/${cleanedIp}/country/`, {
+                mode: 'cors' as RequestMode,
+                headers: {
+                    'Accept': 'text/plain'
+                }
+            });
+            const country = await response.text();
             
-            if (data && data !== 'Undefined') {
-                country = data.trim();
+            this.log.log(LogLevel.DEBUG, `ipapi.co response for ${cleanedIp}: "${country}"`);
+            
+            if (country && country !== 'Undefined' && country.length === 2) {
+                this.countryCache.set(cleanedIp, country);
+                return country;
             }
             
-            // Cache the result
-            this.countryCache.set(ip, country);
-            return country;
+            // Try backup service if first one fails
+            this.log.log(LogLevel.INFO, `First lookup service failed, trying backup for ${cleanedIp}`);
+            const response2 = await fetch(`http://ip-api.com/json/${cleanedIp}?fields=country`, {
+                mode: 'cors' as RequestMode,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            const data = await response2.json();
+            
+            this.log.log(LogLevel.DEBUG, `Backup service response for ${cleanedIp}: ${JSON.stringify(data)}`);
+            
+            if (data && data.country) {
+                const countryCode = this.getCountryCodeFromName(data.country);
+                this.countryCache.set(cleanedIp, countryCode);
+                return countryCode;
+            }
+            
+            throw new Error('All lookup services failed');
         } catch (error) {
-            console.error('Error fetching country from IP:', error);
+            this.log.log(LogLevel.ERROR, `Error fetching country for IP ${cleanedIp}`, error);
+            this.countryCache.set(cleanedIp, 'Unknown');
             return 'Unknown';
         }
     }
+    
+    // Helper to validate IP format
+    private isValidIpFormat(ip: string): boolean {
+        if (!ip) return false;
+        
+        // Simple regex to validate IPv4 format
+        const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+        const match = ip.match(ipv4Regex);
+        
+        if (!match) return false;
+        
+        // Check each octet is in valid range (0-255)
+        for (let i = 1; i <= 4; i++) {
+            const octet = parseInt(match[i], 10);
+            if (octet < 0 || octet > 255) return false;
+        }
+        
+        return true;
+    }
+    
+    private getCountryCodeFromName(countryName: string): string {
+        // Simplified mapping of common country names to their two-letter codes
+        const countryMap: Record<string, string> = {
+            'United States': 'US',
+            'United Kingdom': 'GB',
+            'Russia': 'RU',
+            'Germany': 'DE',
+            'France': 'FR',
+            'Italy': 'IT',
+            'Spain': 'ES',
+            'China': 'CN',
+            'Japan': 'JP',
+            'Brazil': 'BR',
+            'Canada': 'CA',
+            'Australia': 'AU',
+            'Netherlands': 'NL',
+            'Poland': 'PL',
+            'Ukraine': 'UA',
+            'Sweden': 'SE',
+            'Norway': 'NO',
+            'Denmark': 'DK',
+            'Finland': 'FI',
+            // Add more as needed
+        };
+        
+        return countryMap[countryName] || countryName.substring(0, 2).toUpperCase();
+    }
 
+    // Method to refresh country data for all players
+    public refreshCountries(): void {
+        this.log.log(LogLevel.INFO, 'Starting country refresh for all players');
+        
+        const playerCount = this.knownPlayers.size;
+        this.log.log(LogLevel.INFO, `Total players for country refresh: ${playerCount}`);
+        
+        let updatedCount = 0;
+        let promises: Promise<void>[] = [];
+        
+        // Process each player
+        for (const player of this.knownPlayers.values()) {
+            if (player.ip) {
+                const promise = this.getCountryFromIp(player.ip, true)
+                    .then(country => {
+                        if (player.country !== country) {
+                            player.country = country;
+                            updatedCount++;
+                            this.log.log(LogLevel.DEBUG, `Updated player ${player.name || player.beguid} with country ${country}`);
+                        }
+                    })
+                    .catch(error => {
+                        this.log.log(LogLevel.ERROR, `Error refreshing country for player ${player.name || player.beguid}`, error);
+                    });
+                promises.push(promise);
+            }
+        }
+        
+        // Wait for all lookups to complete
+        Promise.all(promises).then(() => {
+            this.log.log(LogLevel.INFO, `Country refresh complete. Updated ${updatedCount} of ${playerCount} players`);
+            // Force UI update
+            this._search$.next();
+        });
+    }
 }

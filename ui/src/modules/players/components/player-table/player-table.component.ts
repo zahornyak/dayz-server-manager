@@ -33,5 +33,8 @@ export class PlayerTableComponent implements OnInit {
             sortDirection: direction,
         });
     }
-
+    
+    public refreshCountries(): void {
+        this.playerService.refreshCountries();
+    }
 }
