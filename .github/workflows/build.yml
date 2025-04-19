@@ -5,7 +5,7 @@ on:
     branches:
       - master
       - experimental
-      - map-workaround
+      - revert-feature-getcountryip
     tags:
       - '*'
 
