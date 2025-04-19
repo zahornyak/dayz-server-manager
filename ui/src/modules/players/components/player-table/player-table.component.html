@@ -7,7 +7,10 @@
         <button type="button" class="btn btn-primary ml-3" (click)="refreshCountries()">Refresh Countries</button>
     </div>
     
-    <div *ngIf="refreshStatus" class="alert alert-info mb-3">
+    <div *ngIf="refreshStatus" class="alert alert-info mb-3" style="position: relative;">
+        <button type="button" class="close" (click)="refreshStatus = ''" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
         <strong>Country Update:</strong> {{ refreshStatus }}
     </div>
     

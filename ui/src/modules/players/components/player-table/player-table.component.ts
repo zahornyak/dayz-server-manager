@@ -36,35 +36,43 @@ export class PlayerTableComponent implements OnInit {
     }
     
     public refreshCountries(): void {
-        this.refreshStatus = 'Refreshing country data...';
+        // Start with a clean status
+        this.refreshStatus = 'Starting country refresh...';
         console.log('*** STARTING COUNTRY REFRESH ***');
         
         // Count players for status update
         const playersCount = this.playerService.getKnownPlayersCount();
         
-        // Set timeout to simulate the processing time and update status
-        setTimeout(() => {
-            console.log(`*** PROCESSING ${playersCount} PLAYERS ***`);
-            this.refreshStatus = `Processing ${playersCount} players...`;
-        }, 500);
+        if (playersCount === 0) {
+            this.refreshStatus = 'No players to process';
+            return;
+        }
         
-        // Call service and handle completion
-        this.playerService.refreshCountries().then(updatedCount => {
+        // Track progress directly - no need for interval
+        let processedCount = 0;
+        
+        // Call service with progress callback and handle completion
+        this.playerService.refreshCountries((processed) => {
+            // Update our local count
+            processedCount = processed;
+            
+            // Update status message
+            const percentage = Math.round((processedCount / playersCount) * 100);
+            this.refreshStatus = `Processing ${processedCount} of ${playersCount} players (${percentage}%)...`;
+        })
+        .then(updatedCount => {
+            // Show success
             console.log(`*** COUNTRY REFRESH COMPLETE: Updated ${updatedCount} players ***`);
-            this.refreshStatus = `Success! Updated country data for ${updatedCount} players.`;
+            this.refreshStatus = `Success! Updated country data for ${updatedCount} of ${playersCount} players.`;
             
-            // Clear status after a few seconds
-            setTimeout(() => {
-                this.refreshStatus = '';
-            }, 5000);
-        }).catch(error => {
+            // Status message stays visible until manually closed
+        })
+        .catch(error => {
+            // Show error
             console.error('*** COUNTRY REFRESH ERROR ***', error);
-            this.refreshStatus = 'Error refreshing country data. See console for details.';
+            this.refreshStatus = `Error refreshing country data: ${error.message || 'Unknown error'}`;
             
-            // Clear status after a few seconds
-            setTimeout(() => {
-                this.refreshStatus = '';
-            }, 5000);
+            // Status message stays visible until manually closed
         });
     }
 }

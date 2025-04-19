@@ -665,7 +665,7 @@ export class PlayersService {
     }
 
     // Method to refresh country data for all players
-    public refreshCountries(): Promise<number> {
+    public refreshCountries(onProgress?: (processed: number) => void): Promise<number> {
         console.log('DIRECT: Starting country refresh for all players');
         console.log('%c🌎 COUNTRY REFRESH STARTED', 'background: #4285f4; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
         
@@ -674,7 +674,30 @@ export class PlayersService {
         
         return new Promise<number>((resolve, reject) => {
             let updatedCount = 0;
+            let processedCount = 0;
             let promises: Promise<void>[] = [];
+            
+            // No players to process
+            if (playerCount === 0) {
+                console.log('DIRECT: No players to process');
+                console.log('%c✅ COUNTRY REFRESH COMPLETED - NO PLAYERS', 'background: #0f9d58; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
+                this._search$.next(); // Force UI update
+                resolve(0);
+                return;
+            }
+            
+            // Function to update progress
+            const updateProgress = () => {
+                processedCount++;
+                if (onProgress) {
+                    onProgress(processedCount);
+                }
+                
+                // Force update when all players processed
+                if (processedCount >= playerCount) {
+                    this.finalizeCountryRefresh(updatedCount, playerCount, resolve, reject);
+                }
+            };
             
             // Process each player
             console.log('DIRECT: Processing players...');
@@ -690,29 +713,47 @@ export class PlayersService {
                             } else {
                                 console.log(`DIRECT: ⏩ Player ${player.name || player.beguid} already has correct country ${country}`);
                             }
+                            updateProgress();
                         })
                         .catch(error => {
                             console.error(`DIRECT: ❌ Error refreshing country for player ${player.name || player.beguid}`, error);
+                            updateProgress();
                         });
                     promises.push(promise);
                 } else {
                     console.log(`DIRECT: ⚠️ Skipping player ${player.name || player.beguid} - no IP address`);
+                    updateProgress();
                 }
             }
             
-            // Wait for all lookups to complete
-            Promise.all(promises).then(() => {
-                console.log(`DIRECT: Country refresh complete. Updated ${updatedCount} of ${playerCount} players`);
-                console.log('%c🎉 COUNTRY REFRESH COMPLETED', 'background: #0f9d58; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
-                // Force UI update
-                this._search$.next();
-                resolve(updatedCount);
-            }).catch(error => {
-                console.error('DIRECT: Country refresh failed:', error);
-                console.log('%c❌ COUNTRY REFRESH FAILED', 'background: #db4437; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
-                reject(error);
-            });
+            // Set a 20-second timeout as a fallback
+            setTimeout(() => {
+                if (processedCount < playerCount) {
+                    console.log(`DIRECT: Timeout reached - ${processedCount} of ${playerCount} players processed`);
+                    this.finalizeCountryRefresh(updatedCount, playerCount, resolve, reject);
+                }
+            }, 20000);
         });
+    }
+
+    // Helper to finalize the country refresh and resolve the promise
+    private finalizeCountryRefresh(
+        updatedCount: number, 
+        totalCount: number, 
+        resolve: (value: number) => void,
+        reject: (reason?: any) => void
+    ): void {
+        try {
+            console.log(`DIRECT: Country refresh complete. Updated ${updatedCount} of ${totalCount} players`);
+            console.log('%c🎉 COUNTRY REFRESH COMPLETED', 'background: #0f9d58; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
+            // Force UI update
+            this._search$.next();
+            resolve(updatedCount);
+        } catch (error) {
+            console.error('DIRECT: Error finalizing country refresh:', error);
+            console.log('%c❌ COUNTRY REFRESH FAILED', 'background: #db4437; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
+            reject(error);
+        }
     }
 
     // Helper method to get total number of known players
