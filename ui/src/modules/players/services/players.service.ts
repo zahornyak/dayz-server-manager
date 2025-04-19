@@ -29,6 +29,7 @@ export interface MergedPlayer {
     banned?: boolean;
     whitelisted?: boolean;
     prio?: boolean;
+    country?: string;
 }
 
 interface SearchResult {
@@ -67,6 +68,7 @@ const matches = (player: MergedPlayer, term: string): boolean => {
         || player.beguid.includes(term)
         || !!player.steamid?.includes(term)
         || !!player.dayzid?.includes(term)
+        || !!player.country?.toLowerCase().includes(term.toLowerCase())
     );
 };
 
@@ -97,6 +99,9 @@ export class PlayersService {
     public whitelisted = new Set<string>();
     public priority = new Set<string>();
     public rconBans = new Map<string, RconBan>();
+
+    // Cache for IP to country lookups to minimize API calls
+    private countryCache = new Map<string, string>();
 
     public async loadLists(): Promise<void> {
         this.bans = await this.readBanTxt().toPromise().catch(() => []).then((x) => new Set(x));
@@ -258,6 +263,20 @@ export class PlayersService {
 
     private updatePlayerWithRcon(rconPlayer: RconPlayer): MergedPlayer {
         const prevPlayer: MergedPlayer = this.knownPlayers.get(rconPlayer.beguid) || {} as any;
+        
+        // Get country from IP if available and not already set
+        if (rconPlayer.ip && !prevPlayer.country) {
+            this.getCountryFromIp(rconPlayer.ip).then(country => {
+                const player = this.knownPlayers.get(rconPlayer.beguid);
+                if (player) {
+                    player.country = country;
+                    this.knownPlayers.set(rconPlayer.beguid, player);
+                }
+            }).catch(error => {
+                console.error('Error fetching country from IP:', error);
+            });
+        }
+        
         this.knownPlayers.set(
             rconPlayer.beguid,
             Object.assign(
@@ -295,6 +314,7 @@ export class PlayersService {
                     banned: this.isBanned(dayzid || ingamePlayer.id2),
                     whitelisted: this.isWhitelisted(dayzid || ingamePlayer.id2),
                     prio: this.isPrio(ingamePlayer.id2),
+                    country: prevPlayer.country,
                 },
             ),
         );
@@ -457,6 +477,32 @@ export class PlayersService {
         ).pipe(
             tap(x => console.warn(x)),
         );
+    }
+
+    // Helper method to get country from IP
+    private async getCountryFromIp(ip: string): Promise<string> {
+        // Check cache first
+        if (this.countryCache.has(ip)) {
+            return this.countryCache.get(ip)!;
+        }
+
+        try {
+            // Using ipapi.co which provides HTTPS
+            const response = await fetch(`https://ipapi.co/${ip}/country/`);
+            const data = await response.text();
+            let country = 'Unknown';
+            
+            if (data && data !== 'Undefined') {
+                country = data.trim();
+            }
+            
+            // Cache the result
+            this.countryCache.set(ip, country);
+            return country;
+        } catch (error) {
+            console.error('Error fetching country from IP:', error);
+            return 'Unknown';
+        }
     }
 
 }
