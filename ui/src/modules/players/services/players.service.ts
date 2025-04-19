@@ -547,6 +547,99 @@ export class PlayersService {
         );
     }
 
+    // Method to refresh country data for all players
+    public refreshCountries(onProgress?: (processed: number) => void): Promise<number> {
+        console.log('DIRECT: Starting country refresh for all players');
+        console.log('%c🌎 COUNTRY REFRESH STARTED', 'background: #4285f4; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
+        
+        const playerCount = this.knownPlayers.size;
+        console.log(`DIRECT: Total players for country refresh: ${playerCount}`);
+        
+        // DEBUG: Log all players and their IPs
+        console.log('%c📋 PLAYER LIST', 'background: #ffa000; color: white; padding: 5px; border-radius: 3px;');
+        let playersWithIps = 0;
+        for (const player of this.knownPlayers.values()) {
+            console.log(`DIRECT: Player ${player.name || player.beguid}: IP=${player.ip || 'MISSING'}, Country=${player.country || 'Unknown'}`);
+            if (player.ip) {
+                playersWithIps++;
+            }
+        }
+        console.log(`DIRECT: ${playersWithIps} of ${playerCount} players have IP addresses`);
+        
+        return new Promise<number>((resolve, reject) => {
+            let updatedCount = 0;
+            let processedCount = 0;
+            let promises: Promise<void>[] = [];
+            
+            // No players to process
+            if (playerCount === 0) {
+                console.log('DIRECT: No players to process');
+                console.log('%c✅ COUNTRY REFRESH COMPLETED - NO PLAYERS', 'background: #0f9d58; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
+                this._search$.next(); // Force UI update
+                resolve(0);
+                return;
+            }
+            
+            // No players with IPs
+            if (playersWithIps === 0) {
+                console.log('DIRECT: No players have IP addresses to lookup');
+                console.log('%c⚠️ COUNTRY REFRESH COMPLETED - NO IPS', 'background: #ffa000; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
+                this._search$.next(); // Force UI update
+                resolve(0);
+                return;
+            }
+            
+            // Function to update progress
+            const updateProgress = () => {
+                processedCount++;
+                if (onProgress) {
+                    onProgress(processedCount);
+                }
+                
+                // Force update when all players processed
+                if (processedCount >= playerCount) {
+                    this.finalizeCountryRefresh(updatedCount, playerCount, resolve, reject);
+                }
+            };
+            
+            // Process each player
+            console.log('DIRECT: Processing players...');
+            for (const player of this.knownPlayers.values()) {
+                if (player.ip) {
+                    console.log(`DIRECT: 👤 Processing player ${player.name || player.beguid} with IP ${player.ip}`);
+                    const promise = this.getCountryFromIp(player.ip, true)
+                        .then(country => {
+                            if (player.country !== country) {
+                                const oldCountry = player.country || 'Unknown';
+                                player.country = country;
+                                updatedCount++;
+                                console.log(`DIRECT: ✅ Updated player ${player.name || player.beguid} country from ${oldCountry} to ${country}`);
+                            } else {
+                                console.log(`DIRECT: ⏩ Player ${player.name || player.beguid} already has correct country ${country}`);
+                            }
+                            updateProgress();
+                        })
+                        .catch(error => {
+                            console.error(`DIRECT: ❌ Error refreshing country for player ${player.name || player.beguid}`, error);
+                            updateProgress();
+                        });
+                    promises.push(promise);
+                } else {
+                    console.log(`DIRECT: ⚠️ Skipping player ${player.name || player.beguid} - no IP address`);
+                    updateProgress();
+                }
+            }
+            
+            // Set a 20-second timeout as a fallback
+            setTimeout(() => {
+                if (processedCount < playerCount) {
+                    console.log(`DIRECT: Timeout reached - ${processedCount} of ${playerCount} players processed`);
+                    this.finalizeCountryRefresh(updatedCount, playerCount, resolve, reject);
+                }
+            }, 20000);
+        });
+    }
+
     // Helper method to get country from IP
     private async getCountryFromIp(ip: string, forceRefresh = false): Promise<string> {
         if (!ip) {
@@ -581,7 +674,7 @@ export class PlayersService {
             });
             const country = await response.text();
             
-            console.log(`DIRECT: ipapi.co response for ${cleanedIp}: "${country}"`);
+            console.log(`DIRECT: ipapi.co raw response for ${cleanedIp}: "${country}"`);
             
             if (country && country !== 'Undefined' && country.length === 2) {
                 console.log(`DIRECT: ✅ Found country ${country} for IP ${cleanedIp}`);
@@ -599,7 +692,7 @@ export class PlayersService {
             });
             const data = await response2.json();
             
-            console.log(`DIRECT: Backup service response for ${cleanedIp}: ${JSON.stringify(data)}`);
+            console.log(`DIRECT: Backup service raw response for ${cleanedIp}: ${JSON.stringify(data)}`);
             
             if (data && data.country) {
                 const countryCode = this.getCountryCodeFromName(data.country);
@@ -609,11 +702,18 @@ export class PlayersService {
             }
             
             console.log(`DIRECT: ❌ All lookup services failed for ${cleanedIp}`);
-            throw new Error('All lookup services failed');
+            
+            // If all lookups fail, return "XX" as a fallback so we can see it's an error
+            const fallbackCode = 'XX';
+            this.countryCache.set(cleanedIp, fallbackCode);
+            return fallbackCode;
         } catch (error) {
             console.error(`DIRECT: ❌ Error fetching country for IP ${cleanedIp}`, error);
-            this.countryCache.set(cleanedIp, 'Unknown');
-            return 'Unknown';
+            
+            // Use a placeholder to indicate lookup failed
+            const errorCode = 'ZZ';
+            this.countryCache.set(cleanedIp, errorCode);
+            return errorCode;
         }
     }
     
@@ -664,78 +764,6 @@ export class PlayersService {
         return countryMap[countryName] || countryName.substring(0, 2).toUpperCase();
     }
 
-    // Method to refresh country data for all players
-    public refreshCountries(onProgress?: (processed: number) => void): Promise<number> {
-        console.log('DIRECT: Starting country refresh for all players');
-        console.log('%c🌎 COUNTRY REFRESH STARTED', 'background: #4285f4; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
-        
-        const playerCount = this.knownPlayers.size;
-        console.log(`DIRECT: Total players for country refresh: ${playerCount}`);
-        
-        return new Promise<number>((resolve, reject) => {
-            let updatedCount = 0;
-            let processedCount = 0;
-            let promises: Promise<void>[] = [];
-            
-            // No players to process
-            if (playerCount === 0) {
-                console.log('DIRECT: No players to process');
-                console.log('%c✅ COUNTRY REFRESH COMPLETED - NO PLAYERS', 'background: #0f9d58; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
-                this._search$.next(); // Force UI update
-                resolve(0);
-                return;
-            }
-            
-            // Function to update progress
-            const updateProgress = () => {
-                processedCount++;
-                if (onProgress) {
-                    onProgress(processedCount);
-                }
-                
-                // Force update when all players processed
-                if (processedCount >= playerCount) {
-                    this.finalizeCountryRefresh(updatedCount, playerCount, resolve, reject);
-                }
-            };
-            
-            // Process each player
-            console.log('DIRECT: Processing players...');
-            for (const player of this.knownPlayers.values()) {
-                if (player.ip) {
-                    console.log(`DIRECT: 👤 Processing player ${player.name || player.beguid} with IP ${player.ip}`);
-                    const promise = this.getCountryFromIp(player.ip, true)
-                        .then(country => {
-                            if (player.country !== country) {
-                                player.country = country;
-                                updatedCount++;
-                                console.log(`DIRECT: ✅ Updated player ${player.name || player.beguid} with country ${country}`);
-                            } else {
-                                console.log(`DIRECT: ⏩ Player ${player.name || player.beguid} already has correct country ${country}`);
-                            }
-                            updateProgress();
-                        })
-                        .catch(error => {
-                            console.error(`DIRECT: ❌ Error refreshing country for player ${player.name || player.beguid}`, error);
-                            updateProgress();
-                        });
-                    promises.push(promise);
-                } else {
-                    console.log(`DIRECT: ⚠️ Skipping player ${player.name || player.beguid} - no IP address`);
-                    updateProgress();
-                }
-            }
-            
-            // Set a 20-second timeout as a fallback
-            setTimeout(() => {
-                if (processedCount < playerCount) {
-                    console.log(`DIRECT: Timeout reached - ${processedCount} of ${playerCount} players processed`);
-                    this.finalizeCountryRefresh(updatedCount, playerCount, resolve, reject);
-                }
-            }, 20000);
-        });
-    }
-
     // Helper to finalize the country refresh and resolve the promise
     private finalizeCountryRefresh(
         updatedCount: number, 
@@ -759,5 +787,57 @@ export class PlayersService {
     // Helper method to get total number of known players
     public getKnownPlayersCount(): number {
         return this.knownPlayers.size;
+    }
+
+    // Public method to test country lookup for a specific IP
+    public testCountryLookup(testIp: string): Promise<string> {
+        console.log(`DIRECT: 🧪 Testing country lookup for IP: ${testIp}`);
+        
+        // Use a test IP if none provided
+        const ip = testIp || '8.8.8.8'; // Google DNS as fallback
+        
+        // Force refresh to bypass cache
+        return this.getCountryFromIp(ip, true)
+            .then(country => {
+                console.log(`DIRECT: ✅ Test lookup result: ${country} for IP ${ip}`);
+                return country;
+            })
+            .catch(error => {
+                console.error(`DIRECT: ❌ Test lookup failed for IP ${ip}`, error);
+                throw error;
+            });
+    }
+
+    // Method to manually set a country for a player by ID
+    public setPlayerCountry(playerId: string, countryCode: string): boolean {
+        console.log(`DIRECT: Manually setting country for player ${playerId} to ${countryCode}`);
+        
+        // Find player by beguid, steam64 or dayzId
+        let player = this.knownPlayers.get(playerId);
+        
+        // If not found by beguid, try to find by steam64
+        if (!player) {
+            for (const p of this.knownPlayers.values()) {
+                if (p.steamid === playerId || p.dayzid === playerId) {
+                    player = p;
+                    break;
+                }
+            }
+        }
+        
+        // If found, update country
+        if (player) {
+            const oldCountry = player.country || 'Unknown';
+            player.country = countryCode;
+            this.knownPlayers.set(player.beguid, player);
+            console.log(`DIRECT: ✅ Manually updated player ${player.name || player.beguid} country from ${oldCountry} to ${countryCode}`);
+            
+            // Refresh the UI
+            this._search$.next();
+            return true;
+        } else {
+            console.error(`DIRECT: ❌ Player with ID ${playerId} not found`);
+            return false;
+        }
     }
 }

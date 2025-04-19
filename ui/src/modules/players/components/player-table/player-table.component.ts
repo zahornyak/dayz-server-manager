@@ -75,4 +75,22 @@ export class PlayerTableComponent implements OnInit {
             // Status message stays visible until manually closed
         });
     }
+
+    // Test country lookup with a known IP
+    public testCountryLookup(): void {
+        this.refreshStatus = 'Testing country lookup...';
+        
+        // Use Google's DNS as a test IP
+        const testIp = '8.8.8.8';
+        
+        this.playerService.testCountryLookup(testIp)
+            .then(country => {
+                this.refreshStatus = `Test successful! IP ${testIp} is in country ${country}`;
+                console.log(`TEST: Lookup successful for ${testIp} = ${country}`);
+            })
+            .catch(error => {
+                this.refreshStatus = `Test failed! Error: ${error.message || 'Unknown error'}`;
+                console.error('TEST: Lookup failed', error);
+            });
+    }
 }

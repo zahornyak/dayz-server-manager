@@ -5,6 +5,7 @@
             (change)="playerService.updateState({ searchTerm: searchTerm.value })" />
         <span class="ml-3" *ngIf="playerService.loading$ | async">Loading...</span>
         <button type="button" class="btn btn-primary ml-3" (click)="refreshCountries()">Refresh Countries</button>
+        <button type="button" class="btn btn-secondary ml-2" (click)="testCountryLookup()">Test Lookup</button>
     </div>
     
     <div *ngIf="refreshStatus" class="alert alert-info mb-3" style="position: relative;">
