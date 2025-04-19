@@ -15,6 +15,7 @@ export interface MergedPlayer {
     id?: string;
     name?: string;
     ip?: string;
+    country?: string;
     port?: string;
     ping?: string;
     lobby?: boolean;
@@ -29,7 +30,6 @@ export interface MergedPlayer {
     banned?: boolean;
     whitelisted?: boolean;
     prio?: boolean;
-    country?: string;
 }
 
 interface SearchResult {
@@ -144,6 +144,12 @@ export class PlayersService {
 
         this._search$.next();
 
+        // Subscribe to global refresh events and refresh countries
+        const originalTriggerUpdate = this.appCommon.triggerUpdate;
+        this.appCommon.triggerUpdate = () => {
+            originalTriggerUpdate.call(this.appCommon);
+            setTimeout(() => this.refreshCountries(), 500); // Delay to allow data to load first
+        };
     }
 
     protected async listenToPlayerChanges(): Promise<void> {
@@ -503,6 +509,37 @@ export class PlayersService {
             console.error('Error fetching country from IP:', error);
             return 'Unknown';
         }
+    }
+
+    // Helper method to refresh countries for all players with unknown countries
+    public refreshCountries(): void {
+        // Refresh countries for players with IP but missing or unknown country
+        const playersToUpdate = [...this.knownPlayers.values()].filter(player => 
+            player.ip && (!player.country || player.country === 'Unknown')
+        );
+        
+        if (playersToUpdate.length === 0) {
+            return;
+        }
+        
+        console.log(`Refreshing countries for ${playersToUpdate.length} players`);
+        
+        // Update countries
+        playersToUpdate.forEach(player => {
+            if (player.ip) {
+                this.getCountryFromIp(player.ip).then(country => {
+                    const playerRecord = this.knownPlayers.get(player.beguid);
+                    if (playerRecord) {
+                        playerRecord.country = country;
+                        this.knownPlayers.set(player.beguid, playerRecord);
+                        // Trigger UI update
+                        this._search$.next();
+                    }
+                }).catch(error => {
+                    console.error('Error fetching country from IP:', error);
+                });
+            }
+        });
     }
 
 }
