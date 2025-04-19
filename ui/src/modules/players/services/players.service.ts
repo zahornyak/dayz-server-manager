@@ -9,6 +9,7 @@ import md5 from 'crypto-js/md5';
 import WordArray from 'crypto-js/lib-typedarrays';
 import Base64 from 'crypto-js/enc-base64';
 import bigInt from 'big-integer';
+import { Logger, LogLevel } from 'src/util/logger';
 
 export interface MergedPlayer {
     beguid: string;
@@ -102,6 +103,9 @@ export class PlayersService {
 
     // Cache for IP to country lookups to minimize API calls
     private countryCache = new Map<string, string>();
+    
+    // Logger instance
+    private log: Logger = new Logger('PlayersService');
 
     public async loadLists(): Promise<void> {
         this.bans = await this.readBanTxt().toPromise().catch(() => []).then((x) => new Set(x));
@@ -490,44 +494,44 @@ export class PlayersService {
         // Make sure we have a valid IP format - strip port or any extra characters
         const cleanedIp = this.cleanIpAddress(ip);
         if (!cleanedIp) {
-            console.error(`[Country] Invalid IP format: ${ip}`);
+            this.log.log(LogLevel.ERROR, `Invalid IP format: ${ip}`);
             return 'Unknown';
         }
         
         // Check cache first
         if (this.countryCache.has(cleanedIp)) {
-            console.log(`[Country] Using cached country for IP ${cleanedIp}: ${this.countryCache.get(cleanedIp)}`);
+            this.log.log(LogLevel.DEBUG, `Using cached country for IP ${cleanedIp}: ${this.countryCache.get(cleanedIp)}`);
             return this.countryCache.get(cleanedIp)!;
         }
 
         try {
-            console.log(`[Country] Fetching country for IP ${cleanedIp}...`);
+            this.log.log(LogLevel.DEBUG, `Fetching country for IP ${cleanedIp}...`);
             // Using ipapi.co which provides HTTPS
             const response = await fetch(`https://ipapi.co/${cleanedIp}/country/`);
             const data = await response.text();
-            console.log(`[Country] API response for IP ${cleanedIp}: "${data}", status: ${response.status}`);
+            this.log.log(LogLevel.DEBUG, `API response for IP ${cleanedIp}: "${data}", status: ${response.status}`);
             
             let country = 'Unknown';
             
             if (data && data !== 'Undefined' && response.ok) {
                 country = data.trim();
-                console.log(`[Country] Successfully found country for IP ${cleanedIp}: ${country}`);
+                this.log.log(LogLevel.INFO, `Successfully found country for IP ${cleanedIp}: ${country}`);
             } else {
-                console.warn(`[Country] Failed to get country for IP ${cleanedIp}, response: "${data}", status: ${response.status}`);
+                this.log.log(LogLevel.WARN, `Failed to get country for IP ${cleanedIp}, response: "${data}", status: ${response.status}`);
                 
                 // Try with a fallback API if the first one fails
                 try {
-                    console.log(`[Country] Trying fallback API for IP ${cleanedIp}...`);
+                    this.log.log(LogLevel.DEBUG, `Trying fallback API for IP ${cleanedIp}...`);
                     const fallbackResponse = await fetch(`https://ip-api.com/json/${cleanedIp}?fields=country`);
                     const fallbackData = await fallbackResponse.json();
-                    console.log(`[Country] Fallback API response for IP ${cleanedIp}:`, fallbackData);
+                    this.log.log(LogLevel.DEBUG, `Fallback API response for IP ${cleanedIp}:`, fallbackData);
                     
                     if (fallbackData && fallbackData.status === 'success' && fallbackData.country) {
                         country = fallbackData.country;
-                        console.log(`[Country] Successfully found country from fallback API for IP ${cleanedIp}: ${country}`);
+                        this.log.log(LogLevel.INFO, `Successfully found country from fallback API for IP ${cleanedIp}: ${country}`);
                     }
                 } catch (fallbackError) {
-                    console.error(`[Country] Error using fallback API for IP ${cleanedIp}:`, fallbackError);
+                    this.log.log(LogLevel.ERROR, `Error using fallback API for IP ${cleanedIp}:`, fallbackError);
                 }
             }
             
@@ -535,7 +539,7 @@ export class PlayersService {
             this.countryCache.set(cleanedIp, country);
             return country;
         } catch (error) {
-            console.error(`[Country] Error fetching country for IP ${cleanedIp}:`, error);
+            this.log.log(LogLevel.ERROR, `Error fetching country for IP ${cleanedIp}:`, error);
             return 'Unknown';
         }
     }
@@ -564,23 +568,30 @@ export class PlayersService {
 
     // Helper method to refresh countries for all players with unknown countries
     public refreshCountries(): void {
-        // Refresh countries for players with IP but missing or unknown country
-        const allPlayers = [...this.knownPlayers.values()];
-        const playersToUpdate = allPlayers.filter(player => 
-            player.ip && (!player.country || player.country === 'Unknown')
-        );
+        this.log.log(LogLevel.IMPORTANT, 'PLAYERS SERVICE - REFRESH COUNTRIES STARTED');
         
-        console.log(`[Country] Total players: ${allPlayers.length}, Players with unknown country: ${playersToUpdate.length}`);
+        // Get all players with an IP address (even those with countries)
+        const allPlayers = [...this.knownPlayers.values()];
+        this.log.log(LogLevel.INFO, `Total players in system: ${allPlayers.length}`);
+        
+        // Log all players with IPs for debugging
+        const playersWithIp = allPlayers.filter(player => player.ip);
+        this.log.log(LogLevel.INFO, `Players with IP addresses: ${playersWithIp.length}`);
+        playersWithIp.forEach(player => {
+            this.log.log(LogLevel.DEBUG, `Player: ${player.name || 'unnamed'}, IP: ${player.ip}, Country: ${player.country || 'none'}`);
+        });
+        
+        // For testing: Force refresh ALL players with IPs (not just unknown countries)
+        const playersToUpdate = playersWithIp; 
+        
+        this.log.log(LogLevel.INFO, `Total players: ${allPlayers.length}, Players to update: ${playersToUpdate.length}`);
         
         if (playersToUpdate.length === 0) {
-            console.log('[Country] No players need country updates');
+            this.log.log(LogLevel.INFO, 'No players need country updates');
             return;
         }
         
-        console.log(`[Country] Refreshing countries for ${playersToUpdate.length} players:`);
-        playersToUpdate.forEach(player => {
-            console.log(`[Country] - Player: ${player.name || 'unnamed'}, IP: ${player.ip}, Current country: ${player.country || 'none'}`);
-        });
+        this.log.log(LogLevel.INFO, `Refreshing countries for ${playersToUpdate.length} players`);
         
         // Update countries
         playersToUpdate.forEach(player => {
@@ -588,14 +599,14 @@ export class PlayersService {
                 this.getCountryFromIp(player.ip).then(country => {
                     const playerRecord = this.knownPlayers.get(player.beguid);
                     if (playerRecord) {
-                        console.log(`[Country] Updated player ${playerRecord.name || playerRecord.beguid} country from ${playerRecord.country || 'none'} to ${country}`);
+                        this.log.log(LogLevel.INFO, `Updated player ${playerRecord.name || playerRecord.beguid} country from ${playerRecord.country || 'none'} to ${country}`);
                         playerRecord.country = country;
                         this.knownPlayers.set(player.beguid, playerRecord);
                         // Trigger UI update
                         this._search$.next();
                     }
                 }).catch(error => {
-                    console.error('[Country] Error fetching country from IP:', error);
+                    this.log.log(LogLevel.ERROR, 'Error fetching country from IP:', error);
                 });
             }
         });

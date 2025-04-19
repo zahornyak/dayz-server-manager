@@ -3,12 +3,15 @@
         Search:
         <input class="form-control ml-2" type="text" name="searchTerm" #searchTerm
             (change)="playerService.updateState({ searchTerm: searchTerm.value })" />
-        <button class="btn btn-outline-secondary ml-2" (click)="refreshCountries()" title="Refresh Countries">
-            <fa-icon [icon]='["fas", "globe"]'></fa-icon>
+        <button class="btn btn-danger ml-2" (click)="refreshCountries()" title="Refresh Countries">
+            <fa-icon [icon]='["fas", "globe"]'></fa-icon> Refresh Countries
         </button>
         <span class="ml-3" *ngIf="playerService.loading$ | async">Loading...</span>
     </div>
     <span>SteamID, DayZID and character values might only be available when the player is online.</span>
+    <div class="alert alert-info mt-2 mb-2">
+        Debug: Found {{ (playerService.allPlayers$ | async)?.length || 0 }} total players. Click the "Refresh Countries" button to update country information.
+    </div>
     <table class="table table-striped">
         <thead>
             <tr>

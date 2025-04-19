@@ -6,6 +6,7 @@ import {
 import { SortEvent } from '../../directives/sortable.directive';
 import { MergedPlayer, PlayersService } from '../..//services/players.service';
 import { Observable } from 'rxjs';
+import { Logger, LogLevel } from 'src/util/logger';
 
 @Component({
     selector: 'sb-player-table',
@@ -18,14 +19,23 @@ export class PlayerTableComponent implements OnInit {
 
     @Input() public players$!: Observable<MergedPlayer[]>;
     @Input() public total$!: Observable<number>;
+    
+    // Logger instance
+    private log: Logger = new Logger('PlayerTableComponent');
 
     public constructor(
         public playerService: PlayersService,
     ) {}
 
     public ngOnInit(): void {
+        // Add a test log to verify logging works
+        this.log.log(LogLevel.IMPORTANT, 'PLAYER TABLE COMPONENT INITIALIZED');
+        
         // Refresh countries for any existing players on component init
-        setTimeout(() => this.refreshCountries(), 1000);
+        setTimeout(() => {
+            this.log.log(LogLevel.INFO, 'Triggering country refresh');
+            this.refreshCountries();
+        }, 1000);
     }
 
     public onSort({ column, direction }: SortEvent): void {
@@ -36,6 +46,8 @@ export class PlayerTableComponent implements OnInit {
     }
     
     public refreshCountries(): void {
+        this.log.log(LogLevel.INFO, 'Refresh countries button clicked');
+        alert('Starting country refresh - check server logs for details');
         this.playerService.refreshCountries();
     }
 }
