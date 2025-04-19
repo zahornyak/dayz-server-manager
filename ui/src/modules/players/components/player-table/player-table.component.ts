@@ -24,7 +24,8 @@ export class PlayerTableComponent implements OnInit {
     ) {}
 
     public ngOnInit(): void {
-        // ignore
+        // Refresh countries for any existing players on component init
+        setTimeout(() => this.refreshCountries(), 1000);
     }
 
     public onSort({ column, direction }: SortEvent): void {

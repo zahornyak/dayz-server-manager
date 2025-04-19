@@ -487,42 +487,100 @@ export class PlayersService {
 
     // Helper method to get country from IP
     private async getCountryFromIp(ip: string): Promise<string> {
+        // Make sure we have a valid IP format - strip port or any extra characters
+        const cleanedIp = this.cleanIpAddress(ip);
+        if (!cleanedIp) {
+            console.error(`[Country] Invalid IP format: ${ip}`);
+            return 'Unknown';
+        }
+        
         // Check cache first
-        if (this.countryCache.has(ip)) {
-            return this.countryCache.get(ip)!;
+        if (this.countryCache.has(cleanedIp)) {
+            console.log(`[Country] Using cached country for IP ${cleanedIp}: ${this.countryCache.get(cleanedIp)}`);
+            return this.countryCache.get(cleanedIp)!;
         }
 
         try {
+            console.log(`[Country] Fetching country for IP ${cleanedIp}...`);
             // Using ipapi.co which provides HTTPS
-            const response = await fetch(`https://ipapi.co/${ip}/country/`);
+            const response = await fetch(`https://ipapi.co/${cleanedIp}/country/`);
             const data = await response.text();
+            console.log(`[Country] API response for IP ${cleanedIp}: "${data}", status: ${response.status}`);
+            
             let country = 'Unknown';
             
-            if (data && data !== 'Undefined') {
+            if (data && data !== 'Undefined' && response.ok) {
                 country = data.trim();
+                console.log(`[Country] Successfully found country for IP ${cleanedIp}: ${country}`);
+            } else {
+                console.warn(`[Country] Failed to get country for IP ${cleanedIp}, response: "${data}", status: ${response.status}`);
+                
+                // Try with a fallback API if the first one fails
+                try {
+                    console.log(`[Country] Trying fallback API for IP ${cleanedIp}...`);
+                    const fallbackResponse = await fetch(`https://ip-api.com/json/${cleanedIp}?fields=country`);
+                    const fallbackData = await fallbackResponse.json();
+                    console.log(`[Country] Fallback API response for IP ${cleanedIp}:`, fallbackData);
+                    
+                    if (fallbackData && fallbackData.status === 'success' && fallbackData.country) {
+                        country = fallbackData.country;
+                        console.log(`[Country] Successfully found country from fallback API for IP ${cleanedIp}: ${country}`);
+                    }
+                } catch (fallbackError) {
+                    console.error(`[Country] Error using fallback API for IP ${cleanedIp}:`, fallbackError);
+                }
             }
             
             // Cache the result
-            this.countryCache.set(ip, country);
+            this.countryCache.set(cleanedIp, country);
             return country;
         } catch (error) {
-            console.error('Error fetching country from IP:', error);
+            console.error(`[Country] Error fetching country for IP ${cleanedIp}:`, error);
             return 'Unknown';
         }
+    }
+
+    // Clean IP address to ensure proper format for API calls
+    private cleanIpAddress(ip: string): string | null {
+        if (!ip) return null;
+        
+        // Remove port if present (e.g., "127.0.0.1:1234" -> "127.0.0.1")
+        const ipParts = ip.split(':');
+        const cleanedIp = ipParts[0];
+        
+        // Validate IP (basic check)
+        const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+        if (ipv4Regex.test(cleanedIp)) {
+            // Check if the values are in valid range
+            const parts = cleanedIp.split('.').map(Number);
+            if (parts.every(part => part >= 0 && part <= 255)) {
+                return cleanedIp;
+            }
+        }
+        
+        // For now, just return the cleaned IP without validation (to support IPv6 too)
+        return cleanedIp;
     }
 
     // Helper method to refresh countries for all players with unknown countries
     public refreshCountries(): void {
         // Refresh countries for players with IP but missing or unknown country
-        const playersToUpdate = [...this.knownPlayers.values()].filter(player => 
+        const allPlayers = [...this.knownPlayers.values()];
+        const playersToUpdate = allPlayers.filter(player => 
             player.ip && (!player.country || player.country === 'Unknown')
         );
         
+        console.log(`[Country] Total players: ${allPlayers.length}, Players with unknown country: ${playersToUpdate.length}`);
+        
         if (playersToUpdate.length === 0) {
+            console.log('[Country] No players need country updates');
             return;
         }
         
-        console.log(`Refreshing countries for ${playersToUpdate.length} players`);
+        console.log(`[Country] Refreshing countries for ${playersToUpdate.length} players:`);
+        playersToUpdate.forEach(player => {
+            console.log(`[Country] - Player: ${player.name || 'unnamed'}, IP: ${player.ip}, Current country: ${player.country || 'none'}`);
+        });
         
         // Update countries
         playersToUpdate.forEach(player => {
@@ -530,13 +588,14 @@ export class PlayersService {
                 this.getCountryFromIp(player.ip).then(country => {
                     const playerRecord = this.knownPlayers.get(player.beguid);
                     if (playerRecord) {
+                        console.log(`[Country] Updated player ${playerRecord.name || playerRecord.beguid} country from ${playerRecord.country || 'none'} to ${country}`);
                         playerRecord.country = country;
                         this.knownPlayers.set(player.beguid, playerRecord);
                         // Trigger UI update
                         this._search$.next();
                     }
                 }).catch(error => {
-                    console.error('Error fetching country from IP:', error);
+                    console.error('[Country] Error fetching country from IP:', error);
                 });
             }
         });
