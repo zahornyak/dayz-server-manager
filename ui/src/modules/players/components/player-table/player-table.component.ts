@@ -16,6 +16,7 @@ export class PlayerTableComponent implements OnInit {
 
     public readonly MAX_ITEMS = 9999999;
     public refreshStatus = '';
+    public autoRefreshEnabled = false;
 
     @Input() public players$!: Observable<MergedPlayer[]>;
     @Input() public total$!: Observable<number>;
@@ -25,7 +26,8 @@ export class PlayerTableComponent implements OnInit {
     ) {}
 
     public ngOnInit(): void {
-        // ignore
+        // Ensure auto-refresh is disabled on component initialization
+        this.playerService.toggleAutoRefresh(false);
     }
 
     public onSort({ column, direction }: SortEvent): void {
@@ -147,5 +149,20 @@ export class PlayerTableComponent implements OnInit {
                 this.refreshStatus = `Error looking up country: ${error.message || 'Unknown error'}`;
                 console.error('DIRECT DEBUG: Error in direct country lookup', error);
             });
+    }
+
+    // Toggle auto-refresh of countries
+    public toggleAutoRefresh(): void {
+        this.autoRefreshEnabled = this.playerService.toggleAutoRefresh();
+        
+        this.refreshStatus = `Auto-refresh of countries ${this.autoRefreshEnabled ? 'enabled' : 'disabled'}`;
+        console.log(`AUTO-REFRESH: ${this.autoRefreshEnabled ? 'Enabled' : 'Disabled'}`);
+        
+        // Clear status after a few seconds
+        setTimeout(() => {
+            if (this.refreshStatus.includes('Auto-refresh')) {
+                this.refreshStatus = '';
+            }
+        }, 3000);
     }
 }

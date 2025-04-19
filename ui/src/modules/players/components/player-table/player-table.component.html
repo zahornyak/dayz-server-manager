@@ -7,6 +7,11 @@
         <button type="button" class="btn btn-primary ml-3" (click)="refreshCountries()">Refresh Countries</button>
         <button type="button" class="btn btn-warning ml-2" (click)="refreshCountries(true)">Force Refresh</button>
         <button type="button" class="btn btn-secondary ml-2" (click)="testCountryLookup()">Test Lookup</button>
+        <button type="button" class="btn ml-2" 
+                [ngClass]="autoRefreshEnabled ? 'btn-danger' : 'btn-success'"
+                (click)="toggleAutoRefresh()">
+            {{ autoRefreshEnabled ? 'Disable Auto-Refresh' : 'Enable Auto-Refresh' }}
+        </button>
     </div>
     
     <div *ngIf="refreshStatus" class="alert alert-info mb-3" style="position: relative;">

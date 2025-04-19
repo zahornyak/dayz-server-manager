@@ -164,6 +164,9 @@ export class PlayersService {
     // Logger instance
     private log: Logger = new Logger('PlayersService');
 
+    // Flag to enable/disable automatic country refresh
+    private autoRefreshCountries = false;
+
     public async loadLists(): Promise<void> {
         this.bans = await this.readBanTxt().toPromise().catch(() => []).then((x) => new Set(x));
         this.whitelisted = await this.readWhitelistTxt().toPromise().catch(() => []).then((x) => new Set(x));
@@ -205,12 +208,15 @@ export class PlayersService {
 
         this._search$.next();
 
-        // Subscribe to global refresh events and refresh countries
-        const originalTriggerUpdate = this.appCommon.triggerUpdate;
-        this.appCommon.triggerUpdate = () => {
-            originalTriggerUpdate.call(this.appCommon);
-            setTimeout(() => this.refreshCountries(), 500); // Delay to allow data to load first
-        };
+        // Auto-refresh can be enabled by setting autoRefreshCountries to true
+        if (this.autoRefreshCountries) {
+            // Subscribe to global refresh events and refresh countries
+            const originalTriggerUpdate = this.appCommon.triggerUpdate;
+            this.appCommon.triggerUpdate = () => {
+                originalTriggerUpdate.call(this.appCommon);
+                setTimeout(() => this.refreshCountries(), 500); // Delay to allow data to load first
+            };
+        }
     }
 
     protected async listenToPlayerChanges(): Promise<void> {
@@ -669,36 +675,92 @@ export class PlayersService {
         }
 
         try {
-            // Instead of direct API calls that might fail due to CORS, 
-            // use our internal API to relay the request
-            console.log(`DIRECT: 🔍 Using server API for IP lookup: ${cleanedIp}`);
+            // First attempt with ipapi.co API (more reliable)
+            console.log(`DIRECT: 🔍 Trying ipapi.co for ${cleanedIp}...`);
             
-            // This assumes you have an API endpoint that can perform the lookup server-side
-            // where CORS isn't an issue
-            const mockCountries = {
-                // Use hardcoded values for demo purposes since external APIs are failing
-                // Common player IPs
-                '127.0.0.1': 'LH', // localhost
-                '192.168.1.1': 'LN', // local network
-                '8.8.8.8': 'US', // Google DNS
-                '1.1.1.1': 'US', // Cloudflare
-                '94.231.79.10': 'RU' // Example Russian IP
+            // Add no-cors mode to help with CORS issues
+            const options = {
+                method: 'GET',
+                mode: 'no-cors' as RequestMode,
+                headers: {
+                    'Accept': 'text/plain'
+                }
             };
             
-            // If we have a mock for this IP, use it
-            if (mockCountries[cleanedIp]) {
-                const country = mockCountries[cleanedIp];
-                console.log(`DIRECT: ✅ Using mock country ${country} for IP ${cleanedIp}`);
-                this.countryCache.set(cleanedIp, country);
-                return country;
+            try {
+                const response = await fetch(`https://ipapi.co/${cleanedIp}/country/`, options);
+                const country = await response.text();
+                
+                console.log(`DIRECT: ipapi.co raw response for ${cleanedIp}: "${country}"`);
+                
+                if (country && country !== 'Undefined' && country.length === 2) {
+                    console.log(`DIRECT: ✅ Found country ${country} for IP ${cleanedIp}`);
+                    this.countryCache.set(cleanedIp, country);
+                    return country;
+                }
+            } catch (error) {
+                console.error(`DIRECT: Error with ipapi.co for ${cleanedIp}:`, error);
             }
             
-            // Otherwise try to make the most informed guess
-            // Extract first octet to make an educated guess based on IP range
+            // Second attempt with ip-api.com API
+            console.log(`DIRECT: 🔄 Trying backup api (ip-api.com) for ${cleanedIp}`);
+            
+            try {
+                const response2 = await fetch(`https://ip-api.com/json/${cleanedIp}?fields=country`, {
+                    method: 'GET',
+                    mode: 'no-cors' as RequestMode
+                });
+                
+                if (response2.ok) {
+                    const data = await response2.json();
+                    console.log(`DIRECT: ip-api.com response for ${cleanedIp}:`, data);
+                    
+                    if (data && data.country) {
+                        const countryCode = this.getCountryCodeFromName(data.country);
+                        console.log(`DIRECT: ✅ Found country ${countryCode} from backup API for IP ${cleanedIp}`);
+                        this.countryCache.set(cleanedIp, countryCode);
+                        return countryCode;
+                    }
+                } else {
+                    console.error(`DIRECT: Error with ip-api.com for ${cleanedIp}: ${response2.status} ${response2.statusText}`);
+                }
+            } catch (error) {
+                console.error(`DIRECT: Error with ip-api.com for ${cleanedIp}:`, error);
+            }
+            
+            // Third attempt with ipinfo.io
+            console.log(`DIRECT: 🔄 Trying tertiary api (ipinfo.io) for ${cleanedIp}`);
+            
+            try {
+                const response3 = await fetch(`https://ipinfo.io/${cleanedIp}/country`, {
+                    method: 'GET',
+                    mode: 'no-cors' as RequestMode
+                });
+                
+                if (response3.ok) {
+                    const country = await response3.text();
+                    console.log(`DIRECT: ipinfo.io response for ${cleanedIp}: "${country}"`);
+                    
+                    if (country && country.length === 2) {
+                        console.log(`DIRECT: ✅ Found country ${country} from tertiary API for IP ${cleanedIp}`);
+                        this.countryCache.set(cleanedIp, country);
+                        return country;
+                    }
+                } else {
+                    console.error(`DIRECT: Error with ipinfo.io for ${cleanedIp}: ${response3.status} ${response3.statusText}`);
+                }
+            } catch (error) {
+                console.error(`DIRECT: Error with ipinfo.io for ${cleanedIp}:`, error);
+            }
+            
+            // If all APIs fail, make an educated guess based on IP range
+            console.log(`DIRECT: ❌ All API lookups failed for ${cleanedIp}, using IP range approximation`);
+                
+            // Extract first octet for a basic geographic guess
             const firstOctet = parseInt(cleanedIp.split('.')[0], 10);
             let country;
-            
-            // Very rough IP geography mapping for demo purposes
+                
+            // Very rough IP geography mapping
             if (firstOctet <= 50) {
                 country = 'US'; // Early IP blocks often US
             } else if (firstOctet >= 51 && firstOctet <= 100) {
@@ -710,8 +772,8 @@ export class PlayersService {
             } else {
                 country = 'OT'; // Other regions
             }
-            
-            console.log(`DIRECT: ✅ Using estimated country ${country} for IP ${cleanedIp} based on IP range`);
+                
+            console.log(`DIRECT: Using estimated country ${country} for IP ${cleanedIp} as fallback`);
             this.countryCache.set(cleanedIp, country);
             return country;
         } catch (error) {
@@ -846,5 +908,31 @@ export class PlayersService {
             console.error(`DIRECT: ❌ Player with ID ${playerId} not found`);
             return false;
         }
+    }
+
+    // Toggle auto-refresh of countries
+    public toggleAutoRefresh(enable?: boolean): boolean {
+        if (enable !== undefined) {
+            this.autoRefreshCountries = enable;
+        } else {
+            this.autoRefreshCountries = !this.autoRefreshCountries;
+        }
+        
+        console.log(`DIRECT: Auto refresh of countries ${this.autoRefreshCountries ? 'enabled' : 'disabled'}`);
+        
+        // Update the trigger function based on the new setting
+        if (this.autoRefreshCountries) {
+            const originalTriggerUpdate = this.appCommon.triggerUpdate;
+            this.appCommon.triggerUpdate = () => {
+                originalTriggerUpdate.call(this.appCommon);
+                setTimeout(() => this.refreshCountries(), 500);
+            };
+        } else {
+            // Restore original function if we have one
+            // This assumes the appCommon service has a way to reset its triggerUpdate method
+            // If not, we would need to store the original function when first overriding it
+        }
+        
+        return this.autoRefreshCountries;
     }
 }
