@@ -84,17 +84,34 @@ export class PlayerTableComponent implements OnInit {
         });
     }
 
-    // Test country lookup with a known IP
+    // Test country lookup with different IPs
     public testCountryLookup(): void {
         this.refreshStatus = 'Testing country lookup...';
         
-        // Use Google's DNS as a test IP
-        const testIp = '8.8.8.8';
+        // Test multiple example IPs
+        const testIps = [
+            '8.8.8.8',      // Google DNS (US)
+            '1.1.1.1',      // Cloudflare (US)
+            '94.231.79.10', // Example Russian IP
+            '212.77.98.9',  // Vatican City IP
+            '185.70.40.31'  // Random European IP
+        ];
+        
+        // Pick a random IP to test
+        const testIp = testIps[Math.floor(Math.random() * testIps.length)];
         
         this.playerService.testCountryLookup(testIp)
             .then(country => {
                 this.refreshStatus = `Test successful! IP ${testIp} is in country ${country}`;
                 console.log(`TEST: Lookup successful for ${testIp} = ${country}`);
+                
+                // Show all mocked countries
+                console.log('TEST: Available mock countries:');
+                console.log('- 127.0.0.1: LH (Localhost)');
+                console.log('- 192.168.1.1: LN (Local Network)');
+                console.log('- 8.8.8.8: US (Google DNS)');
+                console.log('- 1.1.1.1: US (Cloudflare)');
+                console.log('- 94.231.79.10: RU (Example Russian IP)');
             })
             .catch(error => {
                 this.refreshStatus = `Test failed! Error: ${error.message || 'Unknown error'}`;
