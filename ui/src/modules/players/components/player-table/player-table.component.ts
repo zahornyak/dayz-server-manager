@@ -46,8 +46,14 @@ export class PlayerTableComponent implements OnInit {
     }
     
     public refreshCountries(): void {
-        this.log.log(LogLevel.INFO, 'Refresh countries button clicked');
-        alert('Starting country refresh - check server logs for details');
+        console.log('DIRECT: Player table - refreshCountries button clicked');
+        // Direct method to test if API calls are working
+        const testIp = '94.231.79.10';
+        
+        // Call our service to refresh countries
         this.playerService.refreshCountries();
+        
+        // Alert user that refresh has started
+        alert(`Refreshing countries for players. Check the console for details.`);
     }
 }

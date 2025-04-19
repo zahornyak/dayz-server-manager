@@ -154,6 +154,23 @@ export class PlayersService {
             originalTriggerUpdate.call(this.appCommon);
             setTimeout(() => this.refreshCountries(), 500); // Delay to allow data to load first
         };
+        
+        // Force lookup for Jonahe's IP on startup
+        setTimeout(() => {
+            console.log('DIRECT: Forcing lookup for Jonahe on startup');
+            this.getCountryFromIp('94.231.79.10').then(country => {
+                console.log(`DIRECT: Force lookup result for Jonahe: ${country}`);
+                // Update all players with this IP
+                [...this.knownPlayers.values()]
+                    .filter(player => player.ip && player.ip.startsWith('94.231.79.10'))
+                    .forEach(player => {
+                        player.country = country;
+                        this.knownPlayers.set(player.beguid, player);
+                        console.log(`DIRECT: Updated player ${player.name} with country ${country}`);
+                    });
+                this._search$.next();
+            });
+        }, 3000);
     }
 
     protected async listenToPlayerChanges(): Promise<void> {
@@ -490,126 +507,197 @@ export class PlayersService {
     }
 
     // Helper method to get country from IP
-    private async getCountryFromIp(ip: string): Promise<string> {
-        // Make sure we have a valid IP format - strip port or any extra characters
-        const cleanedIp = this.cleanIpAddress(ip);
-        if (!cleanedIp) {
-            this.log.log(LogLevel.ERROR, `Invalid IP format: ${ip}`);
-            return 'Unknown';
+    private isValidIpFormat(ip: string): boolean {
+        if (!ip) return false;
+        
+        // Simple regex to validate IPv4 format
+        const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+        const match = ip.match(ipv4Regex);
+        
+        if (!match) return false;
+        
+        // Check each octet is in valid range (0-255)
+        for (let i = 1; i <= 4; i++) {
+            const octet = parseInt(match[i], 10);
+            if (octet < 0 || octet > 255) return false;
         }
         
-        // Check cache first
-        if (this.countryCache.has(cleanedIp)) {
-            this.log.log(LogLevel.DEBUG, `Using cached country for IP ${cleanedIp}: ${this.countryCache.get(cleanedIp)}`);
+        return true;
+    }
+
+    private async getCountryFromIp(ip: string, forceRefresh = false): Promise<string> {
+        if (!ip) {
+            console.error('DIRECT: getCountryFromIp - Empty IP provided');
+            return 'Unknown';
+        }
+
+        // Clean IP by splitting at colon and taking first part (to remove port)
+        const cleanedIp = ip.split(':')[0];
+        
+        if (!this.isValidIpFormat(cleanedIp)) {
+            console.error(`DIRECT: getCountryFromIp - Invalid IP format: ${cleanedIp}`);
+            return 'Invalid IP';
+        }
+
+        console.log(`DIRECT: getCountryFromIp - Looking up country for IP: ${cleanedIp}`);
+
+        // Check cache first if not forcing refresh
+        if (!forceRefresh && this.countryCache.has(cleanedIp)) {
+            console.log(`DIRECT: getCountryFromIp - Cache hit for ${cleanedIp}: ${this.countryCache.get(cleanedIp)}`);
             return this.countryCache.get(cleanedIp)!;
         }
 
+        // Try multiple APIs with timeouts
         try {
-            this.log.log(LogLevel.DEBUG, `Fetching country for IP ${cleanedIp}...`);
-            // Using ipapi.co which provides HTTPS
-            const response = await fetch(`https://ipapi.co/${cleanedIp}/country/`);
-            const data = await response.text();
-            this.log.log(LogLevel.DEBUG, `API response for IP ${cleanedIp}: "${data}", status: ${response.status}`);
+            console.log(`DIRECT: getCountryFromIp - Trying ipapi.co for ${cleanedIp}`);
+            // First attempt with ipapi.co (more reliable but has rate limits)
+            const fetchOptions = {
+                mode: 'cors' as RequestMode,
+                headers: {
+                    'Accept': 'text/plain',
+                }
+            };
             
-            let country = 'Unknown';
+            const response1 = await fetch(`https://ipapi.co/${cleanedIp}/country/`, fetchOptions);
+            const country = await response1.text();
             
-            if (data && data !== 'Undefined' && response.ok) {
-                country = data.trim();
-                this.log.log(LogLevel.INFO, `Successfully found country for IP ${cleanedIp}: ${country}`);
-            } else {
-                this.log.log(LogLevel.WARN, `Failed to get country for IP ${cleanedIp}, response: "${data}", status: ${response.status}`);
-                
-                // Try with a fallback API if the first one fails
-                try {
-                    this.log.log(LogLevel.DEBUG, `Trying fallback API for IP ${cleanedIp}...`);
-                    const fallbackResponse = await fetch(`https://ip-api.com/json/${cleanedIp}?fields=country`);
-                    const fallbackData = await fallbackResponse.json();
-                    this.log.log(LogLevel.DEBUG, `Fallback API response for IP ${cleanedIp}:`, fallbackData);
-                    
-                    if (fallbackData && fallbackData.status === 'success' && fallbackData.country) {
-                        country = fallbackData.country;
-                        this.log.log(LogLevel.INFO, `Successfully found country from fallback API for IP ${cleanedIp}: ${country}`);
-                    }
-                } catch (fallbackError) {
-                    this.log.log(LogLevel.ERROR, `Error using fallback API for IP ${cleanedIp}:`, fallbackError);
+            console.log(`DIRECT: getCountryFromIp - ipapi.co response for ${cleanedIp}: "${country}"`);
+            
+            if (country && country.length === 2) {
+                this.countryCache.set(cleanedIp, country);
+                return country;
+            }
+        } catch (error) {
+            console.error(`DIRECT: getCountryFromIp - ipapi.co error for ${cleanedIp}:`, error);
+        }
+
+        try {
+            console.log(`DIRECT: getCountryFromIp - Trying ip-api.com for ${cleanedIp}`);
+            // Second attempt with ip-api.com (more lenient rate limits)
+            const response2 = await fetch(`http://ip-api.com/json/${cleanedIp}?fields=country`, {
+                mode: 'cors' as RequestMode,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            const data = await response2.json();
+            
+            console.log(`DIRECT: getCountryFromIp - ip-api.com response for ${cleanedIp}:`, data);
+            
+            if (data && data.country) {
+                // Convert full country name to 2-letter code
+                const countryCode = this.getCountryCodeFromName(data.country);
+                this.countryCache.set(cleanedIp, countryCode);
+                return countryCode;
+            }
+        } catch (error) {
+            console.error(`DIRECT: getCountryFromIp - ip-api.com error for ${cleanedIp}:`, error);
+        }
+
+        try {
+            console.log(`DIRECT: getCountryFromIp - Trying freegeoip.app for ${cleanedIp}`);
+            // Third attempt with freegeoip.app
+            const response3 = await fetch(`https://freegeoip.app/json/${cleanedIp}`, {
+                mode: 'cors' as RequestMode
+            });
+            const data = await response3.json();
+            
+            console.log(`DIRECT: getCountryFromIp - freegeoip.app response for ${cleanedIp}:`, data);
+            
+            if (data && data.country_code) {
+                this.countryCache.set(cleanedIp, data.country_code);
+                return data.country_code;
+            }
+        } catch (error) {
+            console.error(`DIRECT: getCountryFromIp - freegeoip.app error for ${cleanedIp}:`, error);
+        }
+
+        // If all APIs fail, return Unknown
+        console.error(`DIRECT: getCountryFromIp - All APIs failed for ${cleanedIp}`);
+        this.countryCache.set(cleanedIp, 'Unknown');
+        return 'Unknown';
+    }
+
+    private getCountryCodeFromName(countryName: string): string {
+        // Simplified mapping of common country names to their two-letter codes
+        const countryMap: Record<string, string> = {
+            'United States': 'US',
+            'United Kingdom': 'GB',
+            'Russia': 'RU',
+            'Germany': 'DE',
+            'France': 'FR',
+            'Italy': 'IT',
+            'Spain': 'ES',
+            'China': 'CN',
+            'Japan': 'JP',
+            'Brazil': 'BR',
+            'Canada': 'CA',
+            'Australia': 'AU',
+            'Netherlands': 'NL',
+            'Poland': 'PL',
+            'Ukraine': 'UA',
+            'Sweden': 'SE',
+            'Norway': 'NO',
+            'Denmark': 'DK',
+            'Finland': 'FI',
+            // Add more as needed
+        };
+        
+        return countryMap[countryName] || countryName.substring(0, 2).toUpperCase();
+    }
+
+    // Method to refresh country data for all players
+    public refreshCountries(): void {
+        console.log('DIRECT: Refreshing countries for all players');
+        this.log.log(LogLevel.INFO, 'Refreshing countries for all players');
+        
+        const players = this.knownPlayers.values();
+        let count = 0;
+        
+        // Display current players with their IPs for debugging
+        console.log('DIRECT: Current players:');
+        for (const player of this.knownPlayers.values()) {
+            console.log(`DIRECT: Player ${player.name} (${player.beguid}): IP=${player.ip}, Country=${player.country}`);
+        }
+        
+        // Force refresh for known problem IPs
+        const problematicIp = '94.231.79.10';
+        console.log(`DIRECT: Forcing refresh for problematic IP ${problematicIp}`);
+        this.getCountryFromIp(problematicIp).then(country => {
+            console.log(`DIRECT: Forced lookup for ${problematicIp} returned: ${country}`);
+            
+            // Find and update any players with this IP
+            for (const player of this.knownPlayers.values()) {
+                if (player.ip && player.ip.startsWith(problematicIp)) {
+                    console.log(`DIRECT: Updating player ${player.name} with country ${country}`);
+                    player.country = country;
+                    count++;
                 }
             }
             
-            // Cache the result
-            this.countryCache.set(cleanedIp, country);
-            return country;
-        } catch (error) {
-            this.log.log(LogLevel.ERROR, `Error fetching country for IP ${cleanedIp}:`, error);
-            return 'Unknown';
-        }
-    }
-
-    // Clean IP address to ensure proper format for API calls
-    private cleanIpAddress(ip: string): string | null {
-        if (!ip) return null;
-        
-        // Remove port if present (e.g., "127.0.0.1:1234" -> "127.0.0.1")
-        const ipParts = ip.split(':');
-        const cleanedIp = ipParts[0];
-        
-        // Validate IP (basic check)
-        const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-        if (ipv4Regex.test(cleanedIp)) {
-            // Check if the values are in valid range
-            const parts = cleanedIp.split('.').map(Number);
-            if (parts.every(part => part >= 0 && part <= 255)) {
-                return cleanedIp;
-            }
-        }
-        
-        // For now, just return the cleaned IP without validation (to support IPv6 too)
-        return cleanedIp;
-    }
-
-    // Helper method to refresh countries for all players with unknown countries
-    public refreshCountries(): void {
-        this.log.log(LogLevel.IMPORTANT, 'PLAYERS SERVICE - REFRESH COUNTRIES STARTED');
-        
-        // Get all players with an IP address (even those with countries)
-        const allPlayers = [...this.knownPlayers.values()];
-        this.log.log(LogLevel.INFO, `Total players in system: ${allPlayers.length}`);
-        
-        // Log all players with IPs for debugging
-        const playersWithIp = allPlayers.filter(player => player.ip);
-        this.log.log(LogLevel.INFO, `Players with IP addresses: ${playersWithIp.length}`);
-        playersWithIp.forEach(player => {
-            this.log.log(LogLevel.DEBUG, `Player: ${player.name || 'unnamed'}, IP: ${player.ip}, Country: ${player.country || 'none'}`);
+            console.log(`DIRECT: Updated ${count} players with problematic IP`);
         });
         
-        // For testing: Force refresh ALL players with IPs (not just unknown countries)
-        const playersToUpdate = playersWithIp; 
-        
-        this.log.log(LogLevel.INFO, `Total players: ${allPlayers.length}, Players to update: ${playersToUpdate.length}`);
-        
-        if (playersToUpdate.length === 0) {
-            this.log.log(LogLevel.INFO, 'No players need country updates');
-            return;
-        }
-        
-        this.log.log(LogLevel.INFO, `Refreshing countries for ${playersToUpdate.length} players`);
-        
-        // Update countries
-        playersToUpdate.forEach(player => {
-            if (player.ip) {
+        // Update all players with IPs but unknown countries
+        for (const player of this.knownPlayers.values()) {
+            if (player.ip && (!player.country || player.country === 'Unknown')) {
                 this.getCountryFromIp(player.ip).then(country => {
-                    const playerRecord = this.knownPlayers.get(player.beguid);
-                    if (playerRecord) {
-                        this.log.log(LogLevel.INFO, `Updated player ${playerRecord.name || playerRecord.beguid} country from ${playerRecord.country || 'none'} to ${country}`);
-                        playerRecord.country = country;
-                        this.knownPlayers.set(player.beguid, playerRecord);
-                        // Trigger UI update
-                        this._search$.next();
-                    }
+                    player.country = country;
+                    console.log(`DIRECT: Updated player ${player.name} with country ${country}`);
+                    count++;
                 }).catch(error => {
-                    this.log.log(LogLevel.ERROR, 'Error fetching country from IP:', error);
+                    console.error(`DIRECT: Error refreshing country for player ${player.name}:`, error);
                 });
             }
-        });
+        }
+        
+        // Trigger a UI refresh by pushing updated player list
+        setTimeout(() => {
+            this._search$.next();
+            console.log(`DIRECT: Finished refreshing countries for ${count} players`);
+            this.log.log(LogLevel.INFO, `Finished refreshing countries for ${count} players`);
+        }, 2000);
     }
 
 }
+
