@@ -35,10 +35,13 @@ export class PlayerTableComponent implements OnInit {
         });
     }
     
-    public refreshCountries(): void {
+    public refreshCountries(forceUpdate = false): void {
         // Start with a clean status
-        this.refreshStatus = 'Starting country refresh...';
-        console.log('*** STARTING COUNTRY REFRESH ***');
+        this.refreshStatus = forceUpdate 
+            ? 'Starting forced country refresh (will override existing values)...'
+            : 'Starting country refresh...';
+        
+        console.log(`*** STARTING COUNTRY REFRESH ${forceUpdate ? '(FORCE MODE)' : ''} ***`);
         
         // Count players for status update
         const playersCount = this.playerService.getKnownPlayersCount();
@@ -52,14 +55,19 @@ export class PlayerTableComponent implements OnInit {
         let processedCount = 0;
         
         // Call service with progress callback and handle completion
-        this.playerService.refreshCountries((processed) => {
-            // Update our local count
-            processedCount = processed;
-            
-            // Update status message
-            const percentage = Math.round((processedCount / playersCount) * 100);
-            this.refreshStatus = `Processing ${processedCount} of ${playersCount} players (${percentage}%)...`;
-        })
+        this.playerService.refreshCountries(
+            // Progress callback
+            (processed) => {
+                // Update our local count
+                processedCount = processed;
+                
+                // Update status message
+                const percentage = Math.round((processedCount / playersCount) * 100);
+                this.refreshStatus = `Processing ${processedCount} of ${playersCount} players (${percentage}%)...`;
+            },
+            // Force override flag
+            forceUpdate
+        )
         .then(updatedCount => {
             // Show success
             console.log(`*** COUNTRY REFRESH COMPLETE: Updated ${updatedCount} players ***`);
@@ -91,6 +99,36 @@ export class PlayerTableComponent implements OnInit {
             .catch(error => {
                 this.refreshStatus = `Test failed! Error: ${error.message || 'Unknown error'}`;
                 console.error('TEST: Lookup failed', error);
+            });
+    }
+
+    // Update a single player's country data
+    public updateSinglePlayerCountry(player: any): void {
+        if (!player || !player.ip) {
+            this.refreshStatus = 'Error: Player has no IP address';
+            return;
+        }
+        
+        this.refreshStatus = `Updating country for player ${player.name || player.beguid}...`;
+        console.log(`DIRECT DEBUG: Attempting to update country for player`, player);
+        
+        // Force a direct country lookup with this player's IP
+        this.playerService.testCountryLookup(player.ip)
+            .then(country => {
+                console.log(`DIRECT DEBUG: Got country ${country} for IP ${player.ip}`);
+                
+                // Manually set the country
+                if (this.playerService.setPlayerCountry(player.beguid, country)) {
+                    this.refreshStatus = `Successfully updated player ${player.name || player.beguid} with country ${country}`;
+                    console.log(`DIRECT DEBUG: Successfully updated player ${player.name}`);
+                } else {
+                    this.refreshStatus = `Error: Failed to update player record`;
+                    console.error(`DIRECT DEBUG: Failed to update player record`);
+                }
+            })
+            .catch(error => {
+                this.refreshStatus = `Error looking up country: ${error.message || 'Unknown error'}`;
+                console.error('DIRECT DEBUG: Error in direct country lookup', error);
             });
     }
 }

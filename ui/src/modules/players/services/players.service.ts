@@ -548,9 +548,13 @@ export class PlayersService {
     }
 
     // Method to refresh country data for all players
-    public refreshCountries(onProgress?: (processed: number) => void): Promise<number> {
+    public refreshCountries(onProgress?: (processed: number) => void, forceOverride = false): Promise<number> {
         console.log('DIRECT: Starting country refresh for all players');
         console.log('%c🌎 COUNTRY REFRESH STARTED', 'background: #4285f4; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
+        
+        if (forceOverride) {
+            console.log('%c⚠️ FORCE MODE ENABLED - Will override existing values', 'background: #ff9800; color: white; padding: 3px; border-radius: 3px;');
+        }
         
         const playerCount = this.knownPlayers.size;
         console.log(`DIRECT: Total players for country refresh: ${playerCount}`);
@@ -609,7 +613,8 @@ export class PlayersService {
                     console.log(`DIRECT: 👤 Processing player ${player.name || player.beguid} with IP ${player.ip}`);
                     const promise = this.getCountryFromIp(player.ip, true)
                         .then(country => {
-                            if (player.country !== country) {
+                            // Update if country is different or we're forcing an override
+                            if (forceOverride || player.country !== country) {
                                 const oldCountry = player.country || 'Unknown';
                                 player.country = country;
                                 updatedCount++;
