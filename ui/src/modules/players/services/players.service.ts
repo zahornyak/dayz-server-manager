@@ -338,10 +338,10 @@ export class PlayersService {
                 if (player) {
                     player.country = country;
                     this.knownPlayers.set(rconPlayer.beguid, player);
-                    this.log.log(LogLevel.DEBUG, `Updated player ${player.name} with country ${country}`);
+                    console.log(`DIRECT: 🌎 Updated player ${player.name} with country ${country}`);
                 }
             }).catch(error => {
-                this.log.log(LogLevel.ERROR, `Error fetching country for IP ${rconPlayer.ip}`, error);
+                console.error(`DIRECT: 🚫 Error fetching country for IP ${rconPlayer.ip}`, error);
             });
         }
         
@@ -550,7 +550,7 @@ export class PlayersService {
     // Helper method to get country from IP
     private async getCountryFromIp(ip: string, forceRefresh = false): Promise<string> {
         if (!ip) {
-            this.log.log(LogLevel.ERROR, `Empty IP provided for country lookup`);
+            console.error('DIRECT: Empty IP provided for country lookup');
             return 'Unknown';
         }
 
@@ -558,21 +558,21 @@ export class PlayersService {
         const cleanedIp = ip.split(':')[0];
         
         if (!this.isValidIpFormat(cleanedIp)) {
-            this.log.log(LogLevel.ERROR, `Invalid IP format: ${cleanedIp}`);
+            console.error(`DIRECT: Invalid IP format: ${cleanedIp}`);
             return 'Invalid IP';
         }
 
-        this.log.log(LogLevel.DEBUG, `Looking up country for IP: ${cleanedIp}`);
+        console.log(`DIRECT: Looking up country for IP: ${cleanedIp}`);
 
         // Check cache first if not forcing refresh
         if (!forceRefresh && this.countryCache.has(cleanedIp)) {
-            this.log.log(LogLevel.DEBUG, `Cache hit for ${cleanedIp}: ${this.countryCache.get(cleanedIp)}`);
+            console.log(`DIRECT: Cache hit for ${cleanedIp}: ${this.countryCache.get(cleanedIp)}`);
             return this.countryCache.get(cleanedIp)!;
         }
 
         try {
             // Using ipapi.co which provides HTTPS
-            this.log.log(LogLevel.DEBUG, `Trying ipapi.co for ${cleanedIp}`);
+            console.log(`DIRECT: 🔍 Trying ipapi.co for ${cleanedIp}...`);
             const response = await fetch(`https://ipapi.co/${cleanedIp}/country/`, {
                 mode: 'cors' as RequestMode,
                 headers: {
@@ -581,15 +581,16 @@ export class PlayersService {
             });
             const country = await response.text();
             
-            this.log.log(LogLevel.DEBUG, `ipapi.co response for ${cleanedIp}: "${country}"`);
+            console.log(`DIRECT: ipapi.co response for ${cleanedIp}: "${country}"`);
             
             if (country && country !== 'Undefined' && country.length === 2) {
+                console.log(`DIRECT: ✅ Found country ${country} for IP ${cleanedIp}`);
                 this.countryCache.set(cleanedIp, country);
                 return country;
             }
             
             // Try backup service if first one fails
-            this.log.log(LogLevel.INFO, `First lookup service failed, trying backup for ${cleanedIp}`);
+            console.log(`DIRECT: 🔄 First lookup service failed, trying backup for ${cleanedIp}`);
             const response2 = await fetch(`http://ip-api.com/json/${cleanedIp}?fields=country`, {
                 mode: 'cors' as RequestMode,
                 headers: {
@@ -598,17 +599,19 @@ export class PlayersService {
             });
             const data = await response2.json();
             
-            this.log.log(LogLevel.DEBUG, `Backup service response for ${cleanedIp}: ${JSON.stringify(data)}`);
+            console.log(`DIRECT: Backup service response for ${cleanedIp}: ${JSON.stringify(data)}`);
             
             if (data && data.country) {
                 const countryCode = this.getCountryCodeFromName(data.country);
+                console.log(`DIRECT: ✅ Found country ${countryCode} from backup for IP ${cleanedIp}`);
                 this.countryCache.set(cleanedIp, countryCode);
                 return countryCode;
             }
             
+            console.log(`DIRECT: ❌ All lookup services failed for ${cleanedIp}`);
             throw new Error('All lookup services failed');
         } catch (error) {
-            this.log.log(LogLevel.ERROR, `Error fetching country for IP ${cleanedIp}`, error);
+            console.error(`DIRECT: ❌ Error fetching country for IP ${cleanedIp}`, error);
             this.countryCache.set(cleanedIp, 'Unknown');
             return 'Unknown';
         }
@@ -662,38 +665,58 @@ export class PlayersService {
     }
 
     // Method to refresh country data for all players
-    public refreshCountries(): void {
-        this.log.log(LogLevel.INFO, 'Starting country refresh for all players');
+    public refreshCountries(): Promise<number> {
+        console.log('DIRECT: Starting country refresh for all players');
+        console.log('%c🌎 COUNTRY REFRESH STARTED', 'background: #4285f4; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
         
         const playerCount = this.knownPlayers.size;
-        this.log.log(LogLevel.INFO, `Total players for country refresh: ${playerCount}`);
+        console.log(`DIRECT: Total players for country refresh: ${playerCount}`);
         
-        let updatedCount = 0;
-        let promises: Promise<void>[] = [];
-        
-        // Process each player
-        for (const player of this.knownPlayers.values()) {
-            if (player.ip) {
-                const promise = this.getCountryFromIp(player.ip, true)
-                    .then(country => {
-                        if (player.country !== country) {
-                            player.country = country;
-                            updatedCount++;
-                            this.log.log(LogLevel.DEBUG, `Updated player ${player.name || player.beguid} with country ${country}`);
-                        }
-                    })
-                    .catch(error => {
-                        this.log.log(LogLevel.ERROR, `Error refreshing country for player ${player.name || player.beguid}`, error);
-                    });
-                promises.push(promise);
+        return new Promise<number>((resolve, reject) => {
+            let updatedCount = 0;
+            let promises: Promise<void>[] = [];
+            
+            // Process each player
+            console.log('DIRECT: Processing players...');
+            for (const player of this.knownPlayers.values()) {
+                if (player.ip) {
+                    console.log(`DIRECT: 👤 Processing player ${player.name || player.beguid} with IP ${player.ip}`);
+                    const promise = this.getCountryFromIp(player.ip, true)
+                        .then(country => {
+                            if (player.country !== country) {
+                                player.country = country;
+                                updatedCount++;
+                                console.log(`DIRECT: ✅ Updated player ${player.name || player.beguid} with country ${country}`);
+                            } else {
+                                console.log(`DIRECT: ⏩ Player ${player.name || player.beguid} already has correct country ${country}`);
+                            }
+                        })
+                        .catch(error => {
+                            console.error(`DIRECT: ❌ Error refreshing country for player ${player.name || player.beguid}`, error);
+                        });
+                    promises.push(promise);
+                } else {
+                    console.log(`DIRECT: ⚠️ Skipping player ${player.name || player.beguid} - no IP address`);
+                }
             }
-        }
-        
-        // Wait for all lookups to complete
-        Promise.all(promises).then(() => {
-            this.log.log(LogLevel.INFO, `Country refresh complete. Updated ${updatedCount} of ${playerCount} players`);
-            // Force UI update
-            this._search$.next();
+            
+            // Wait for all lookups to complete
+            Promise.all(promises).then(() => {
+                console.log(`DIRECT: Country refresh complete. Updated ${updatedCount} of ${playerCount} players`);
+                console.log('%c🎉 COUNTRY REFRESH COMPLETED', 'background: #0f9d58; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
+                // Force UI update
+                this._search$.next();
+                resolve(updatedCount);
+            }).catch(error => {
+                console.error('DIRECT: Country refresh failed:', error);
+                console.log('%c❌ COUNTRY REFRESH FAILED', 'background: #db4437; color: white; padding: 5px; border-radius: 3px; font-weight: bold;');
+                reject(error);
+            });
         });
+    }
+
+    // Helper method to get total number of known players
+    public getKnownPlayersCount(): number {
+        return this.knownPlayers.size;
     }
 }

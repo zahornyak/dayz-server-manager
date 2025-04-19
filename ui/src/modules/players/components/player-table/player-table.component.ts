@@ -15,6 +15,7 @@ import { Observable } from 'rxjs';
 export class PlayerTableComponent implements OnInit {
 
     public readonly MAX_ITEMS = 9999999;
+    public refreshStatus = '';
 
     @Input() public players$!: Observable<MergedPlayer[]>;
     @Input() public total$!: Observable<number>;
@@ -35,6 +36,35 @@ export class PlayerTableComponent implements OnInit {
     }
     
     public refreshCountries(): void {
-        this.playerService.refreshCountries();
+        this.refreshStatus = 'Refreshing country data...';
+        console.log('*** STARTING COUNTRY REFRESH ***');
+        
+        // Count players for status update
+        const playersCount = this.playerService.getKnownPlayersCount();
+        
+        // Set timeout to simulate the processing time and update status
+        setTimeout(() => {
+            console.log(`*** PROCESSING ${playersCount} PLAYERS ***`);
+            this.refreshStatus = `Processing ${playersCount} players...`;
+        }, 500);
+        
+        // Call service and handle completion
+        this.playerService.refreshCountries().then(updatedCount => {
+            console.log(`*** COUNTRY REFRESH COMPLETE: Updated ${updatedCount} players ***`);
+            this.refreshStatus = `Success! Updated country data for ${updatedCount} players.`;
+            
+            // Clear status after a few seconds
+            setTimeout(() => {
+                this.refreshStatus = '';
+            }, 5000);
+        }).catch(error => {
+            console.error('*** COUNTRY REFRESH ERROR ***', error);
+            this.refreshStatus = 'Error refreshing country data. See console for details.';
+            
+            // Clear status after a few seconds
+            setTimeout(() => {
+                this.refreshStatus = '';
+            }, 5000);
+        });
     }
 }
