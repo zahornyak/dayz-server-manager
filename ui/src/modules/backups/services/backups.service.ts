@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { FileDescriptor } from '../../../app-common/models';
+import { FileDescriptor } from '../models/file-descriptor';
 import { Observable } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })

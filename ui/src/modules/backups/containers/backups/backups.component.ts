@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { BackupsService } from '../../services/backups.service';
-import { FileDescriptor } from '../../../app-common/models';
+import { FileDescriptor } from '../../models/file-descriptor';
 
 @Component({
     selector: 'sb-backups',

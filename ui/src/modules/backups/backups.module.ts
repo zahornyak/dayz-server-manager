@@ -16,6 +16,9 @@ import { BackupsComponent } from './containers/backups/backups.component';
 /* Services */
 import { BackupsService } from './services/backups.service';
 
+/* Models */
+// FileDescriptor model is defined locally in models/file-descriptor.ts
+
 @NgModule({
     imports: [
         CommonModule,
