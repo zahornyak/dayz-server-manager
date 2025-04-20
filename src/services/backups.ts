@@ -43,6 +43,37 @@ export class Backups extends IService {
         void this.cleanup();
     }
 
+    public async restoreBackup(backupName: string): Promise<boolean> {
+        try {
+            const backupDir = this.getBackupDir();
+            const backupPath = path.join(backupDir, backupName);
+            
+            if (!this.fs.existsSync(backupPath)) {
+                this.log.log(LogLevel.ERROR, `Backup ${backupName} does not exist`);
+                return false;
+            }
+
+            const mpmissionsPath = path.join(this.manager.getServerPath(), 'mpmissions');
+            
+            // Create a backup before restoring
+            await this.createBackup();
+            
+            // Remove existing mpmissions directory if it exists
+            if (this.fs.existsSync(mpmissionsPath)) {
+                await this.paths.removeLink(mpmissionsPath);
+            }
+            
+            // Copy the backup to the mpmissions directory
+            await this.paths.copyDirFromTo(backupPath, mpmissionsPath);
+            
+            this.log.log(LogLevel.IMPORTANT, `Successfully restored backup ${backupName}`);
+            return true;
+        } catch (error) {
+            this.log.log(LogLevel.ERROR, `Failed to restore backup ${backupName}`, error);
+            return false;
+        }
+    }
+
     private getBackupDir(): string {
         if (this.paths.isAbsolute(this.manager.config.backupPath)) {
             return this.manager.config.backupPath;
