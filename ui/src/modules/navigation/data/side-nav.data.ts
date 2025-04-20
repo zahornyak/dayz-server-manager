@@ -12,8 +12,9 @@ export const sideNavSections: SideNavSection[] = [
             'players',
             'audit',
             'logs',
-            'maintenance',
             'settings',
+            'backups',
+            'maintenance',
             'map',
             'maploot',
         ],
@@ -52,15 +53,20 @@ export const sideNavItems: SideNavItems = {
         text: 'Logs',
         link: '/dashboard/logs',
     },
-    maintenance: {
-        icon: 'tools',
-        text: 'Maintenance',
-        link: '/dashboard/maintenance',
-    },
     settings: {
         icon: 'cogs',
         text: 'Settings',
         link: '/dashboard/settings',
+    },
+    backups: {
+        icon: 'save',
+        text: 'Backups',
+        link: '/dashboard/backups',
+    },
+    maintenance: {
+        icon: 'tools',
+        text: 'Maintenance',
+        link: '/dashboard/maintenance',
     },
     map: {
         icon: 'map',
