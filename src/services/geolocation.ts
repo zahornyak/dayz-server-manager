@@ -5,7 +5,7 @@ import { LoggerFactory } from './loggerfactory';
 import { IStatefulService } from '../types/service';
 import { LogLevel } from '../util/logger';
 import { Paths } from './paths';
-import * as maxmind from 'maxmind';
+import * as geoip from 'geoip-country';
 
 // Simple in-memory cache
 interface CacheEntry {
@@ -29,17 +29,13 @@ export class GeoLocation extends IStatefulService {
     private readonly dbDir: string;
     private readonly cacheFilePath: string;
 
-    // Add MaxMind implementation
-    private readonly MAXMIND_DB_FILENAME = 'GeoLite2-Country.mmdb';
-    private maxmindReader: maxmind.Reader<maxmind.CountryResponse> | null = null;
-
     constructor(
         loggerFactory: LoggerFactory,
         private paths: Paths
     ) {
         super(loggerFactory.createLogger('GeoLocation'));
         
-        // Set up paths - using cwd() instead of getDataDir() which doesn't exist
+        // Set up paths for cache storage
         this.dbDir = path.join(this.paths.cwd(), 'data', 'geoip');
         this.cacheFilePath = path.join(this.dbDir, this.CACHE_FILE);
         
@@ -54,10 +50,6 @@ export class GeoLocation extends IStatefulService {
 
     public async start(): Promise<void> {
         this.log.log(LogLevel.INFO, 'GeoLocation service started');
-        
-        // Check database status
-        this.checkDatabaseStatus();
-        
         return Promise.resolve();
     }
 
@@ -108,8 +100,8 @@ export class GeoLocation extends IStatefulService {
         }
         
         try {
-            // Try MaxMind database lookup
-            const country = await this.lookupFromMaxMind(cleanedIp);
+            // Use geoip-country to look up the country
+            const country = this.lookupFromGeoipCountry(cleanedIp);
             
             // Store result in cache
             this.ipCache.set(cleanedIp, { 
@@ -137,7 +129,7 @@ export class GeoLocation extends IStatefulService {
             if (fs.existsSync(this.cacheFilePath)) {
                 const cacheData = JSON.parse(fs.readFileSync(this.cacheFilePath, 'utf8'));
                 
-                // Convert object to Map without using Object.entries
+                // Convert object to Map
                 this.ipCache = new Map();
                 for (const ip in cacheData) {
                     if (cacheData.hasOwnProperty(ip)) {
@@ -158,7 +150,7 @@ export class GeoLocation extends IStatefulService {
      */
     private saveCache(): void {
         try {
-            // Convert Map to object without using Object.fromEntries
+            // Convert Map to object
             const cacheObject = {};
             this.ipCache.forEach((value, key) => {
                 cacheObject[key] = value;
@@ -194,53 +186,21 @@ export class GeoLocation extends IStatefulService {
     }
     
     /**
-     * Performs a lookup using MaxMind database
+     * Uses geoip-country library to lookup an IP
      */
-    private async lookupFromMaxMind(ip: string): Promise<string> {
-        // Check if we've already loaded the database
-        if (!this.maxmindReader) {
-            await this.initMaxMindDb();
-        }
-        
-        // If still no reader, return Unknown
-        if (!this.maxmindReader) {
-            return 'Unknown';
-        }
-        
+    private lookupFromGeoipCountry(ip: string): string {
         try {
-            // Query the database
-            const result = this.maxmindReader.get(ip);
-            
-            if (result && result.country && result.country.iso_code) {
-                this.log.log(LogLevel.DEBUG, `MaxMind found country ${result.country.iso_code} for IP ${ip}`);
-                return result.country.iso_code;
+            const result = geoip.lookup(ip);
+            if (result && result.country) {
+                this.log.log(LogLevel.DEBUG, `Found country ${result.country} for IP ${ip}`);
+                return result.country;
             } else {
-                this.log.log(LogLevel.DEBUG, `MaxMind found no country data for IP ${ip}`);
+                this.log.log(LogLevel.DEBUG, `No country data for IP ${ip}`);
                 return 'Unknown';
             }
         } catch (error) {
-            this.log.log(LogLevel.ERROR, `MaxMind lookup error for IP ${ip}`, error);
+            this.log.log(LogLevel.ERROR, `Lookup error for IP ${ip}`, error);
             return 'Unknown';
-        }
-    }
-    
-    /**
-     * Initializes the MaxMind database reader
-     */
-    private async initMaxMindDb(): Promise<void> {
-        const dbPath = path.join(this.dbDir, this.MAXMIND_DB_FILENAME);
-        
-        if (!fs.existsSync(dbPath)) {
-            this.log.log(LogLevel.WARN, `MaxMind database file not found at ${dbPath}`);
-            return;
-        }
-        
-        try {
-            // Now we can use proper import since we've added the library to package.json
-            this.maxmindReader = await maxmind.open<maxmind.CountryResponse>(dbPath);
-            this.log.log(LogLevel.IMPORTANT, 'MaxMind GeoIP database loaded successfully');
-        } catch (error) {
-            this.log.log(LogLevel.ERROR, `Failed to load MaxMind database: ${error.message}`);
         }
     }
     
@@ -263,28 +223,5 @@ export class GeoLocation extends IStatefulService {
         }
         
         return true;
-    }
-    
-    /**
-     * Checks database status and logs warning if not present
-     */
-    private checkDatabaseStatus(): void {
-        const dbPath = path.join(this.dbDir, this.MAXMIND_DB_FILENAME);
-        
-        if (fs.existsSync(dbPath)) {
-            this.log.log(LogLevel.INFO, 'MaxMind GeoIP database found, initializing...');
-            void this.initMaxMindDb();
-        } else {
-            this.log.log(LogLevel.WARN, 
-                'MaxMind GeoIP database not installed. IP lookups will return Unknown.' +
-                ' To enable full geolocation functionality, install the MaxMind GeoLite2 database.'
-            );
-            this.log.log(LogLevel.INFO, 
-                '1. Create a free account at https://dev.maxmind.com/geoip/geolite2-free-geolocation-data' +
-                '\n2. Download the GeoLite2 Country database' +
-                `\n3. Place the GeoLite2-Country.mmdb file in ${this.dbDir}` +
-                '\n4. Restart the server'
-            );
-        }
     }
 } 
