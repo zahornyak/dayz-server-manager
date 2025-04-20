@@ -25,6 +25,12 @@
                         
                         <!-- Existing schedules -->
                         <div class="table-responsive" *ngIf="backupSchedules.length > 0">
+                            <div class="alert alert-info mb-2" *ngIf="usingLegacyApi">
+                                <small>
+                                    <fa-icon class="mr-1" [icon]='["fas", "info-circle"]'></fa-icon>
+                                    Multiple schedule support is in local browser storage only. Server supports one active schedule.
+                                </small>
+                            </div>
                             <table class="table table-bordered">
                                 <thead>
                                     <tr>
@@ -44,14 +50,20 @@
                                             </span>
                                         </td>
                                         <td *ngIf="editingSchedule?.id !== schedule.id">
-                                            <button class="btn btn-sm btn-success mr-1" (click)="toggleScheduleEnabled(schedule)">
+                                            <button class="btn btn-sm btn-success mr-1" (click)="toggleScheduleEnabled(schedule)" 
+                                                title="Toggle enabled/disabled">
                                                 <fa-icon [icon]="schedule.enabled ? ['fas', 'toggle-on'] : ['fas', 'toggle-off']"></fa-icon>
+                                                <span class="ml-1">{{ schedule.enabled ? 'Disable' : 'Enable' }}</span>
                                             </button>
-                                            <button class="btn btn-sm btn-primary mr-1" (click)="editSchedule(schedule)">
+                                            <button class="btn btn-sm btn-primary mr-1" (click)="editSchedule(schedule)"
+                                                title="Edit schedule">
                                                 <fa-icon [icon]='["fas", "edit"]'></fa-icon>
+                                                <span class="ml-1">Edit</span>
                                             </button>
-                                            <button class="btn btn-sm btn-danger" (click)="deleteSchedule(schedule.id)">
+                                            <button class="btn btn-sm btn-danger" (click)="deleteSchedule(schedule.id)"
+                                                title="Delete schedule">
                                                 <fa-icon [icon]='["fas", "trash"]'></fa-icon>
+                                                <span class="ml-1">Delete</span>
                                             </button>
                                         </td>
                                         
