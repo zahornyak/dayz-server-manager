@@ -1,6 +1,7 @@
 import { IStatefulService } from '../types/service';
 import { Manager } from '../control/manager';
 import * as cron from 'node-schedule';
+import * as cronParser from 'cron-parser';
 import { LogLevel } from '../util/logger';
 import { ServerState } from '../types/monitor';
 import { Event } from '../config/config';
@@ -43,21 +44,26 @@ export class Events extends IStatefulService {
                 
                 // Validate cron expression
                 try {
-                    // Check if cron expression is valid
-                    const isValid = cron.validate(event.cron);
+                    // Use cron-parser to validate the cron expression
+                    const interval = cronParser.parseExpression(event.cron);
+                    const nextRun = interval.next();
+                    const isValid = !!nextRun;
+                    
                     this.log.log(LogLevel.IMPORTANT, 
                         `Cron validation for '${event.name}': ${isValid ? 'Valid' : 'Invalid'}`);
                     
                     if (!isValid) {
                         this.log.log(LogLevel.ERROR, 
-                            `Invalid cron expression for event '${event.name}': ${event.cron}`);
+                            `Invalid cron expression for event '${event.name}': ${event.cron} - no upcoming invocations`);
                         this.log.log(LogLevel.INFO, 
                             `Common examples: "* * * * *" (every minute), "0 * * * *" (hourly), "0 0 * * *" (daily at midnight)`);
                         continue;
                     }
-                } catch (cronError) {
+                } catch (parseError) {
                     this.log.log(LogLevel.ERROR, 
-                        `Failed to validate cron expression for event '${event.name}': ${event.cron}`, cronError);
+                        `Invalid cron expression for event '${event.name}': ${event.cron}`);
+                    this.log.log(LogLevel.INFO, 
+                        `Common examples: "* * * * *" (every minute), "0 * * * *" (hourly), "0 0 * * *" (daily at midnight)`);
                     continue;
                 }
 
