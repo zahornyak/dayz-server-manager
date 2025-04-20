@@ -377,46 +377,50 @@ export class BackupsComponent implements OnInit {
     }
 
     public async toggleScheduleEnabled(schedule: BackupSchedule): Promise<void> {
-        const updatedSchedule = { ...schedule, enabled: !schedule.enabled };
         try {
-            if (this.usingLegacyApi) {
-                // For legacy API, just toggle the enabled state
-                const success = await this.backupsService.enableBackupSchedule(updatedSchedule.enabled);
-                if (!success) {
-                    throw new Error('Failed to toggle schedule using legacy API');
-                }
-                
-                // Update our local legacy schedule reference
-                this.backupSchedule = {
-                    enabled: updatedSchedule.enabled,
-                    cronExpression: updatedSchedule.cronExpression
-                };
-                
-                // Update the local schedule object
-                const index = this.backupSchedules.findIndex(s => s.id === schedule.id);
-                if (index !== -1) {
-                    this.backupSchedules[index] = updatedSchedule;
-                }
-                
-                this.saveLocalSchedules(); // Save to localStorage
-            } else {
-                // Use the new API
+            if (!schedule.enabled) {
+                // If we're enabling the schedule
+                const updatedSchedule = { ...schedule, enabled: true };
                 const success = await this.backupsService.updateBackupSchedule(updatedSchedule);
-                if (!success) {
-                    throw new Error('Failed to toggle schedule');
+                if (success) {
+                    const index = this.backupSchedules.findIndex(s => s.id === schedule.id);
+                    if (index !== -1) {
+                        this.backupSchedules[index] = updatedSchedule;
+                    }
+                    this.saveLocalSchedules(); // Save to localStorage
+                    this.outcomeBadge = {
+                        message: `Successfully enabled backup schedule`,
+                        success: true,
+                    };
+                } else {
+                    this.outcomeBadge = {
+                        message: `Failed to enable backup schedule`,
+                        success: false,
+                    };
                 }
-                
-                const index = this.backupSchedules.findIndex(s => s.id === schedule.id);
-                if (index !== -1) {
-                    this.backupSchedules[index] = updatedSchedule;
+            } else {
+                // If we're disabling the schedule, use the specialized endpoint
+                const success = await this.backupsService.disableBackupSchedule(schedule.id);
+                if (success) {
+                    const index = this.backupSchedules.findIndex(s => s.id === schedule.id);
+                    if (index !== -1) {
+                        this.backupSchedules[index] = { 
+                            ...schedule, 
+                            enabled: false 
+                        };
+                    }
+                    this.saveLocalSchedules(); // Save to localStorage
+                    this.outcomeBadge = {
+                        message: `Successfully disabled backup schedule`,
+                        success: true,
+                    };
+                } else {
+                    this.outcomeBadge = {
+                        message: `Failed to disable backup schedule`,
+                        success: false,
+                    };
                 }
-                this.saveLocalSchedules(); // Save to localStorage
             }
-            
-            this.outcomeBadge = {
-                message: `Successfully ${updatedSchedule.enabled ? 'enabled' : 'disabled'} backup schedule`,
-                success: true,
-            };
         } catch (error) {
             console.error('Failed to toggle backup schedule', error);
             this.outcomeBadge = {

@@ -228,13 +228,28 @@ export class BackupsService {
     public async deleteBackupSchedule(scheduleId: string): Promise<boolean> {
         console.log(`BackupsService: Calling API to delete backup schedule ${scheduleId}`);
         try {
-            const result = await this.http.delete<boolean>(`api/deletebackupschedule/${scheduleId}`, {
-                headers: this.auth.getAuthHeaders()
+            const result = await this.http.delete<boolean>(`api/deletebackupschedule`, {
+                headers: this.auth.getAuthHeaders(),
+                params: { id: scheduleId }
             }).toPromise();
             console.log('BackupsService: API response for deleteBackupSchedule:', result);
             return result;
         } catch (error) {
             console.error('BackupsService: Error in deleteBackupSchedule:', this.formatHttpError(error));
+            throw error;
+        }
+    }
+
+    public async disableBackupSchedule(scheduleId: string): Promise<boolean> {
+        console.log(`BackupsService: Calling API to disable backup schedule ${scheduleId}`);
+        try {
+            const result = await this.http.post<boolean>('api/disablebackupschedule', { id: scheduleId }, {
+                headers: this.auth.getAuthHeaders()
+            }).toPromise();
+            console.log('BackupsService: API response for disableBackupSchedule:', result);
+            return result;
+        } catch (error) {
+            console.error('BackupsService: Error in disableBackupSchedule:', this.formatHttpError(error));
             throw error;
         }
     }

@@ -360,18 +360,21 @@ export class Interface extends IService {
                     description: params.description
                 }),
             })],
-            ['deletebackupschedule/:id', RequestTemplate.build({
+            ['deletebackupschedule', RequestTemplate.build({
                 method: 'delete',
                 level: 'manage',
-                action: (req) => {
-                    // Extract id from resource URL path (e.g., deletebackupschedule/123)
-                    const idMatch = req.resource.match(/deletebackupschedule\/([^/]+)/);
-                    const id = idMatch ? idMatch[1] : null;
-                    if (!id) {
-                        return Promise.resolve(false);
-                    }
-                    return this.manager.deleteBackupSchedule(id);
-                },
+                params: [{ name: 'id' }],
+                action: (req, params) => this.manager.deleteBackupSchedule(params.id),
+            })],
+            ['disablebackupschedule', RequestTemplate.build({
+                method: 'post',
+                level: 'manage',
+                params: [{ name: 'id' }],
+                action: (req, params) => this.manager.updateBackupSchedule({
+                    id: params.id,
+                    enabled: false,
+                    cronExpression: '0 0 * * *' // Default cron expression
+                }),
             })],
             ['writemissionfile', RequestTemplate.build({
                 method: 'post',
