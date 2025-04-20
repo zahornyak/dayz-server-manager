@@ -20,7 +20,7 @@ export class BackupsService {
                 responseType: 'text'
             }).toPromise();
             console.log('BackupsService: API response for createBackup:', result);
-            return result === 'true' || result === true;
+            return result === 'true';
         } catch (error) {
             console.error('BackupsService: Error in createBackup:', this.formatHttpError(error));
             throw error;
