@@ -117,9 +117,18 @@ export class Backups extends IService {
                 const fullPath = path.join(backups, file);
                 const stats = await this.fs.promises.stat(fullPath);
                 if (file.startsWith('mpmissions_') && stats.isDirectory()) {
+                    // Calculate directory size by summing sizes of all files
+                    let totalSize = 0;
+                    try {
+                        totalSize = await this.getDirectorySize(fullPath);
+                    } catch (err) {
+                        this.log.log(LogLevel.WARN, `Failed to calculate size for backup ${file}`, err);
+                    }
+                    
                     foundBackups.push({
                         file,
                         mtime: stats.mtime.getTime(),
+                        size: totalSize
                     });
                 }
             }
@@ -130,6 +139,25 @@ export class Backups extends IService {
             this.log.log(LogLevel.ERROR, 'Failed to get backups', error);
             throw error;
         }
+    }
+    
+    // Helper method to calculate directory size
+    private async getDirectorySize(directoryPath: string): Promise<number> {
+        let totalSize = 0;
+        const items = await this.fs.promises.readdir(directoryPath);
+        
+        for (const item of items) {
+            const itemPath = path.join(directoryPath, item);
+            const stats = await this.fs.promises.stat(itemPath);
+            
+            if (stats.isFile()) {
+                totalSize += stats.size;
+            } else if (stats.isDirectory()) {
+                totalSize += await this.getDirectorySize(itemPath);
+            }
+        }
+        
+        return totalSize;
     }
 
     public async cleanup(): Promise<void> {

@@ -325,6 +325,43 @@ export class Interface extends IService {
                 params: [{ name: 'enabled', parse: parseBoolean }],
                 action: (req, params) => this.manager.enableBackupSchedule(params.enabled),
             })],
+            ['getbackupschedules', RequestTemplate.build({
+                method: 'get',
+                level: 'manage',
+                action: () => this.manager.getBackupSchedules(),
+            })],
+            ['addbackupschedule', RequestTemplate.build({
+                method: 'post',
+                level: 'manage',
+                params: [
+                    { name: 'enabled', parse: parseBoolean },
+                    { name: 'cronExpression' },
+                    { name: 'description', optional: true }
+                ],
+                action: (req, params) => this.manager.addBackupSchedule(params),
+            })],
+            ['updatebackupschedule', RequestTemplate.build({
+                method: 'put',
+                level: 'manage',
+                params: [
+                    { name: 'id' },
+                    { name: 'enabled', parse: parseBoolean },
+                    { name: 'cronExpression' },
+                    { name: 'description', optional: true }
+                ],
+                action: (req, params) => this.manager.updateBackupSchedule(params),
+            })],
+            ['deletebackupschedule/:id', RequestTemplate.build({
+                method: 'delete',
+                level: 'manage',
+                action: (req) => {
+                    const id = req.pathParams?.id;
+                    if (!id) {
+                        return Promise.resolve(false);
+                    }
+                    return this.manager.deleteBackupSchedule(id);
+                },
+            })],
             ['writemissionfile', RequestTemplate.build({
                 method: 'post',
                 level: 'manage',

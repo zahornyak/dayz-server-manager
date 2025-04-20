@@ -259,4 +259,144 @@ export class Manager {
         }
     }
 
+    // Support for multiple backup schedules
+    
+    public getBackupSchedules(): Promise<{schedules: Array<{id: string, enabled: boolean, cronExpression: string, description?: string}>}> {
+        try {
+            this.log.log(LogLevel.INFO, 'Getting all backup schedules');
+            
+            if (!this.config.events) {
+                this.log.log(LogLevel.DEBUG, 'No events array in config, returning empty schedules list');
+                return Promise.resolve({ schedules: [] });
+            }
+
+            const backupEvents = this.config.events.filter(e => e.type === 'backup');
+            
+            const schedules = backupEvents.map(event => ({
+                id: event.name.replace(/[^a-zA-Z0-9-_]/g, '_'), // Create an ID from the name
+                enabled: !!event.cron, // If it has a cron expression, it's enabled
+                cronExpression: event.cron || '',
+                description: event.params?.[0] || event.name // Use the first param as description or fallback to name
+            }));
+            
+            this.log.log(LogLevel.DEBUG, `Found ${schedules.length} backup schedules`);
+            
+            return Promise.resolve({ schedules });
+        } catch (error) {
+            this.log.log(LogLevel.ERROR, 'Failed to get backup schedules', error);
+            return Promise.resolve({ schedules: [] });
+        }
+    }
+
+    public addBackupSchedule(schedule: {enabled: boolean, cronExpression: string, description?: string}): Promise<{id: string, enabled: boolean, cronExpression: string, description?: string}> {
+        try {
+            this.log.log(LogLevel.INFO, `Adding new backup schedule: ${schedule.description || 'Unnamed'}`);
+            
+            // Create a new unique name based on description or timestamp
+            const baseName = schedule.description 
+                ? schedule.description.substring(0, 20) // Limit length
+                : 'Backup Schedule';
+            
+            // Add timestamp to ensure uniqueness
+            const timestamp = new Date().getTime().toString().substring(8); // Use last 5 digits
+            const name = `${baseName.replace(/[^a-zA-Z0-9-_ ]/g, '_')}_${timestamp}`;
+            
+            // Initialize events array if it doesn't exist
+            if (!this.config.events) {
+                this.config.events = [];
+            }
+            
+            // Create the event object
+            const newEvent = {
+                name,
+                type: 'backup' as 'backup',
+                cron: schedule.enabled ? schedule.cronExpression : undefined,
+                params: schedule.description ? [schedule.description] : undefined
+            };
+            
+            // Add to the events array
+            this.config.events.push(newEvent);
+            
+            this.log.log(LogLevel.INFO, `Successfully added backup schedule with name: ${name}`);
+            
+            return Promise.resolve({
+                id: name.replace(/[^a-zA-Z0-9-_]/g, '_'),
+                enabled: schedule.enabled,
+                cronExpression: schedule.cronExpression,
+                description: schedule.description
+            });
+        } catch (error) {
+            this.log.log(LogLevel.ERROR, 'Failed to add backup schedule', error);
+            throw error;
+        }
+    }
+
+    public updateBackupSchedule(schedule: {id: string, enabled: boolean, cronExpression: string, description?: string}): Promise<boolean> {
+        try {
+            this.log.log(LogLevel.INFO, `Updating backup schedule with ID: ${schedule.id}`);
+            
+            if (!this.config.events) {
+                this.log.log(LogLevel.ERROR, 'No events array in config, nothing to update');
+                return Promise.resolve(false);
+            }
+            
+            // Find the event with matching ID (normalized name)
+            const event = this.config.events.find(e => 
+                e.type === 'backup' && 
+                e.name.replace(/[^a-zA-Z0-9-_]/g, '_') === schedule.id
+            );
+            
+            if (!event) {
+                this.log.log(LogLevel.ERROR, `No backup schedule found with ID: ${schedule.id}`);
+                return Promise.resolve(false);
+            }
+            
+            // Update the event
+            event.cron = schedule.enabled ? schedule.cronExpression : undefined;
+            
+            // Update description if provided
+            if (schedule.description !== undefined) {
+                if (!event.params) event.params = [];
+                event.params[0] = schedule.description;
+            }
+            
+            this.log.log(LogLevel.INFO, `Successfully updated backup schedule with ID: ${schedule.id}`);
+            return Promise.resolve(true);
+        } catch (error) {
+            this.log.log(LogLevel.ERROR, `Failed to update backup schedule with ID: ${schedule.id}`, error);
+            return Promise.resolve(false);
+        }
+    }
+
+    public deleteBackupSchedule(scheduleId: string): Promise<boolean> {
+        try {
+            this.log.log(LogLevel.INFO, `Deleting backup schedule with ID: ${scheduleId}`);
+            
+            if (!this.config.events) {
+                this.log.log(LogLevel.ERROR, 'No events array in config, nothing to delete');
+                return Promise.resolve(false);
+            }
+            
+            // Find the index of the event with matching ID (normalized name)
+            const eventIndex = this.config.events.findIndex(e => 
+                e.type === 'backup' && 
+                e.name.replace(/[^a-zA-Z0-9-_]/g, '_') === scheduleId
+            );
+            
+            if (eventIndex === -1) {
+                this.log.log(LogLevel.ERROR, `No backup schedule found with ID: ${scheduleId}`);
+                return Promise.resolve(false);
+            }
+            
+            // Remove the event
+            this.config.events.splice(eventIndex, 1);
+            
+            this.log.log(LogLevel.INFO, `Successfully deleted backup schedule with ID: ${scheduleId}`);
+            return Promise.resolve(true);
+        } catch (error) {
+            this.log.log(LogLevel.ERROR, `Failed to delete backup schedule with ID: ${scheduleId}`, error);
+            return Promise.resolve(false);
+        }
+    }
+
 }
