@@ -59,22 +59,23 @@
                                         <td colspan="4" *ngIf="editingSchedule?.id === schedule.id">
                                             <div class="form-group">
                                                 <label>Description:</label>
-                                                <input type="text" class="form-control" [(ngModel)]="editingSchedule.description">
+                                                <input type="text" class="form-control" [(ngModel)]="editingSchedule!.description">
                                             </div>
                                             <div class="form-group">
                                                 <label>Cron Expression:</label>
-                                                <input type="text" class="form-control" [(ngModel)]="editingSchedule.cronExpression">
+                                                <input type="text" class="form-control" [(ngModel)]="editingSchedule!.cronExpression">
                                                 <small class="form-text text-muted">
                                                     Format: min hour day-of-month month day-of-week
                                                 </small>
                                             </div>
                                             <div class="form-group form-check">
                                                 <input type="checkbox" class="form-check-input" id="editEnabled" 
-                                                    [(ngModel)]="editingSchedule.enabled">
+                                                    [(ngModel)]="editingSchedule!.enabled">
                                                 <label class="form-check-label" for="editEnabled">Enabled</label>
                                             </div>
                                             <div>
-                                                <button class="btn btn-primary mr-2" (click)="updateSchedule(editingSchedule)">
+                                                <button class="btn btn-primary mr-2" (click)="updateSchedule(editingSchedule!)" 
+                                                    [disabled]="!editingSchedule">
                                                     Save
                                                 </button>
                                                 <button class="btn btn-secondary" (click)="cancelEdit()">
