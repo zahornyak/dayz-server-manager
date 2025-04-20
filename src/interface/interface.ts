@@ -338,7 +338,11 @@ export class Interface extends IService {
                     { name: 'cronExpression' },
                     { name: 'description', optional: true }
                 ],
-                action: (req, params) => this.manager.addBackupSchedule(params),
+                action: (req, params) => this.manager.addBackupSchedule({
+                    enabled: params.enabled,
+                    cronExpression: params.cronExpression,
+                    description: params.description
+                }),
             })],
             ['updatebackupschedule', RequestTemplate.build({
                 method: 'put',
@@ -349,13 +353,20 @@ export class Interface extends IService {
                     { name: 'cronExpression' },
                     { name: 'description', optional: true }
                 ],
-                action: (req, params) => this.manager.updateBackupSchedule(params),
+                action: (req, params) => this.manager.updateBackupSchedule({
+                    id: params.id,
+                    enabled: params.enabled,
+                    cronExpression: params.cronExpression,
+                    description: params.description
+                }),
             })],
             ['deletebackupschedule/:id', RequestTemplate.build({
                 method: 'delete',
                 level: 'manage',
                 action: (req) => {
-                    const id = req.pathParams?.id;
+                    // Extract id from resource URL path (e.g., deletebackupschedule/123)
+                    const idMatch = req.resource.match(/deletebackupschedule\/([^/]+)/);
+                    const id = idMatch ? idMatch[1] : null;
                     if (!id) {
                         return Promise.resolve(false);
                     }
