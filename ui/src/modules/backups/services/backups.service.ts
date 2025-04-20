@@ -19,8 +19,19 @@ export class BackupsService {
                 headers: this.auth.getAuthHeaders(),
                 responseType: 'text'
             }).toPromise();
-            console.log('BackupsService: API response for createBackup:', result);
-            return result === 'true';
+            console.log('BackupsService: Raw API response for createBackup:', result);
+            
+            // Check for various successful responses
+            if (result === 'true' || 
+                result === '' || // Empty response might indicate success
+                result?.toLowerCase().includes('success') ||
+                result?.toLowerCase().includes('created')) {
+                console.log('BackupsService: Interpreted as success');
+                return true;
+            }
+            
+            console.log('BackupsService: Interpreted as failure');
+            return false;
         } catch (error) {
             console.error('BackupsService: Error in createBackup:', this.formatHttpError(error));
             throw error;
