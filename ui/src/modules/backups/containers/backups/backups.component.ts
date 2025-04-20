@@ -38,7 +38,7 @@ export class BackupsComponent implements OnInit {
         } catch (error) {
             console.error('Failed to load backups - detailed error:', error);
             this.outcomeBadge = {
-                message: 'Failed to load backups: ' + (error.message || JSON.stringify(error)),
+                message: 'Failed to load backups: ' + this.getErrorMessage(error),
                 success: false,
             };
         }
@@ -76,7 +76,7 @@ export class BackupsComponent implements OnInit {
         } catch (error) {
             console.error('Failed to create backup - detailed error:', error);
             this.outcomeBadge = {
-                message: 'Failed to create backup: ' + (error.message || JSON.stringify(error)),
+                message: 'Failed to create backup: ' + this.getErrorMessage(error),
                 success: false,
             };
         }
@@ -164,5 +164,20 @@ export class BackupsComponent implements OnInit {
 
     public getBackupName(file: string): string {
         return file.replace('mpmissions_', '');
+    }
+
+    /**
+     * Helper method to safely extract error messages from unknown error types
+     */
+    private getErrorMessage(error: unknown): string {
+        if (error instanceof Error) {
+            return error.message;
+        } else if (typeof error === 'object' && error !== null && 'message' in error) {
+            return String((error as { message: unknown }).message);
+        } else if (typeof error === 'string') {
+            return error;
+        } else {
+            return JSON.stringify(error);
+        }
     }
 } 
