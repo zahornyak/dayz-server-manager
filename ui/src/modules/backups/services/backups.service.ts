@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { FileDescriptor } from '../models/file-descriptor';
 import { Observable } from 'rxjs';
 
@@ -11,26 +11,81 @@ export class BackupsService {
     ) {}
 
     public async createBackup(): Promise<boolean> {
-        return this.http.post<boolean>('api/backup', {}).toPromise();
+        console.log('BackupsService: Calling API to create backup');
+        try {
+            const result = await this.http.post<boolean>('api/backup', {}).toPromise();
+            console.log('BackupsService: API response for createBackup:', result);
+            return result;
+        } catch (error) {
+            console.error('BackupsService: Error in createBackup:', this.formatHttpError(error));
+            throw error;
+        }
     }
 
     public async getBackups(): Promise<FileDescriptor[]> {
-        return this.http.get<FileDescriptor[]>('api/getbackups').toPromise();
+        console.log('BackupsService: Calling API to get backups');
+        try {
+            const result = await this.http.get<FileDescriptor[]>('api/getbackups').toPromise();
+            console.log('BackupsService: API response for getBackups:', result);
+            return result;
+        } catch (error) {
+            console.error('BackupsService: Error in getBackups:', this.formatHttpError(error));
+            throw error;
+        }
     }
 
     public async restoreBackup(backupName: string): Promise<boolean> {
-        return this.http.post<boolean>('api/restorebackup', { backup: backupName }).toPromise();
+        console.log(`BackupsService: Calling API to restore backup "${backupName}"`);
+        try {
+            const result = await this.http.post<boolean>('api/restorebackup', { backup: backupName }).toPromise();
+            console.log('BackupsService: API response for restoreBackup:', result);
+            return result;
+        } catch (error) {
+            console.error('BackupsService: Error in restoreBackup:', this.formatHttpError(error));
+            throw error;
+        }
     }
 
     public async scheduleBackup(cronExpression: string): Promise<boolean> {
-        return this.http.post<boolean>('api/schedulebackup', { cronExpression }).toPromise();
+        console.log(`BackupsService: Calling API to schedule backup with cron "${cronExpression}"`);
+        try {
+            const result = await this.http.post<boolean>('api/schedulebackup', { cronExpression }).toPromise();
+            console.log('BackupsService: API response for scheduleBackup:', result);
+            return result;
+        } catch (error) {
+            console.error('BackupsService: Error in scheduleBackup:', this.formatHttpError(error));
+            throw error;
+        }
     }
 
     public async getBackupSchedule(): Promise<{ enabled: boolean; cronExpression: string }> {
-        return this.http.get<{ enabled: boolean; cronExpression: string }>('api/getbackupschedule').toPromise();
+        console.log('BackupsService: Calling API to get backup schedule');
+        try {
+            const result = await this.http.get<{ enabled: boolean; cronExpression: string }>('api/getbackupschedule').toPromise();
+            console.log('BackupsService: API response for getBackupSchedule:', result);
+            return result;
+        } catch (error) {
+            console.error('BackupsService: Error in getBackupSchedule:', this.formatHttpError(error));
+            throw error;
+        }
     }
 
     public async enableBackupSchedule(enabled: boolean): Promise<boolean> {
-        return this.http.post<boolean>('api/enablebackupschedule', { enabled }).toPromise();
+        console.log(`BackupsService: Calling API to ${enabled ? 'enable' : 'disable'} backup schedule`);
+        try {
+            const result = await this.http.post<boolean>('api/enablebackupschedule', { enabled }).toPromise();
+            console.log('BackupsService: API response for enableBackupSchedule:', result);
+            return result;
+        } catch (error) {
+            console.error('BackupsService: Error in enableBackupSchedule:', this.formatHttpError(error));
+            throw error;
+        }
+    }
+
+    private formatHttpError(error: any): string {
+        if (error instanceof HttpErrorResponse) {
+            return `Status: ${error.status}, Message: ${error.message}, Details: ${JSON.stringify(error.error)}`;
+        }
+        return String(error);
     }
 } 

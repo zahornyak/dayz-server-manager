@@ -31,12 +31,14 @@ export class BackupsComponent implements OnInit {
 
     public async loadBackups(): Promise<void> {
         try {
+            console.log('Attempting to load backups...');
             this.backups = await this.backupsService.getBackups();
+            console.log('Backups loaded successfully:', this.backups);
             this.backups.sort((a, b) => b.mtime - a.mtime);
         } catch (error) {
-            console.error('Failed to load backups', error);
+            console.error('Failed to load backups - detailed error:', error);
             this.outcomeBadge = {
-                message: 'Failed to load backups',
+                message: 'Failed to load backups: ' + (error.message || JSON.stringify(error)),
                 success: false,
             };
         }
@@ -44,15 +46,21 @@ export class BackupsComponent implements OnInit {
 
     public async loadBackupSchedule(): Promise<void> {
         try {
+            console.log('Attempting to load backup schedule...');
             this.backupSchedule = await this.backupsService.getBackupSchedule();
+            console.log('Backup schedule loaded successfully:', this.backupSchedule);
         } catch (error) {
-            console.error('Failed to load backup schedule', error);
+            console.error('Failed to load backup schedule - detailed error:', error);
+            // Don't show a UI error for this as it's not critical
         }
     }
 
     public async createBackup(): Promise<void> {
         try {
+            console.log('Attempting to create a backup...');
             const success = await this.backupsService.createBackup();
+            console.log('Create backup API response:', success);
+            
             if (success) {
                 this.outcomeBadge = {
                     message: 'Successfully created backup',
@@ -61,14 +69,14 @@ export class BackupsComponent implements OnInit {
                 await this.loadBackups();
             } else {
                 this.outcomeBadge = {
-                    message: 'Failed to create backup',
+                    message: 'Failed to create backup: server returned false',
                     success: false,
                 };
             }
         } catch (error) {
-            console.error('Failed to create backup', error);
+            console.error('Failed to create backup - detailed error:', error);
             this.outcomeBadge = {
-                message: 'Failed to create backup',
+                message: 'Failed to create backup: ' + (error.message || JSON.stringify(error)),
                 success: false,
             };
         }

@@ -155,14 +155,18 @@ export class Manager {
 
     public scheduleBackup(cronExpression: string): Promise<boolean> {
         try {
+            this.log.log(LogLevel.INFO, `Scheduling backup with cron expression: ${cronExpression}`);
+            
             // Set the cron expression in the config
             if (this.config.events) {
                 // Look for existing backup event
                 const backupEvent = this.config.events.find(e => e.type === 'backup');
                 if (backupEvent) {
+                    this.log.log(LogLevel.DEBUG, `Found existing backup event with name "${backupEvent.name}", updating cron expression`);
                     backupEvent.cron = cronExpression;
                 } else {
                     // Create a new backup event
+                    this.log.log(LogLevel.DEBUG, 'No existing backup event found, creating new one');
                     this.config.events.push({
                         name: 'Automated Backup',
                         type: 'backup',
@@ -171,12 +175,15 @@ export class Manager {
                 }
             } else {
                 // Initialize events array with backup event
+                this.log.log(LogLevel.DEBUG, 'No events array in config, creating new one with backup event');
                 this.config.events = [{
                     name: 'Automated Backup',
                     type: 'backup',
                     cron: cronExpression
                 }];
             }
+            
+            this.log.log(LogLevel.INFO, 'Backup schedule successfully updated');
             return Promise.resolve(true);
         } catch (error) {
             this.log.log(LogLevel.ERROR, 'Failed to schedule backup', error);
@@ -186,17 +193,23 @@ export class Manager {
 
     public getBackupSchedule(): Promise<{ enabled: boolean; cronExpression: string }> {
         try {
+            this.log.log(LogLevel.INFO, 'Getting backup schedule');
+            
             if (!this.config.events) {
+                this.log.log(LogLevel.DEBUG, 'No events array in config, returning default schedule');
                 return Promise.resolve({ enabled: false, cronExpression: '0 0 * * *' });
             }
 
             const backupEvent = this.config.events.find(e => e.type === 'backup');
             if (!backupEvent) {
+                this.log.log(LogLevel.DEBUG, 'No backup event found in config, returning default schedule');
                 return Promise.resolve({ enabled: false, cronExpression: '0 0 * * *' });
             }
 
             // To track if it's enabled, we'll check if it has a valid cron expression
             const isEnabled = !!backupEvent.cron;
+            
+            this.log.log(LogLevel.DEBUG, `Found backup event - name: "${backupEvent.name}", cron: "${backupEvent.cron}", enabled: ${isEnabled}`);
             
             return Promise.resolve({
                 enabled: isEnabled,
@@ -210,28 +223,35 @@ export class Manager {
 
     public enableBackupSchedule(enabled: boolean): Promise<boolean> {
         try {
+            this.log.log(LogLevel.INFO, `${enabled ? 'Enabling' : 'Disabling'} backup schedule`);
+            
             if (!this.config.events) {
+                this.log.log(LogLevel.DEBUG, 'No events array in config, nothing to enable/disable');
                 return Promise.resolve(false);
             }
 
             const backupEvent = this.config.events.find(e => e.type === 'backup');
             if (!backupEvent) {
+                this.log.log(LogLevel.DEBUG, 'No backup event found in config, nothing to enable/disable');
                 return Promise.resolve(false);
             }
 
             if (enabled) {
                 // If the event doesn't have a cron expression, set a default one
                 if (!backupEvent.cron) {
+                    this.log.log(LogLevel.DEBUG, 'No cron expression found, setting default value: "0 0 * * *"');
                     backupEvent.cron = '0 0 * * *'; // Midnight every day
                 }
             } else {
                 // To disable, we remove the event from the events array
                 const index = this.config.events.findIndex(e => e.type === 'backup');
                 if (index !== -1) {
+                    this.log.log(LogLevel.DEBUG, `Removing backup event at index ${index}`);
                     this.config.events.splice(index, 1);
                 }
             }
             
+            this.log.log(LogLevel.INFO, `Backup schedule successfully ${enabled ? 'enabled' : 'disabled'}`);
             return Promise.resolve(true);
         } catch (error) {
             this.log.log(LogLevel.ERROR, `Failed to ${enabled ? 'enable' : 'disable'} backup schedule`, error);
