@@ -17,6 +17,8 @@ import { InternalEventTypes } from '../types/events';
 import { Listener } from 'eventemitter2';
 import { WebsocketCommand, WebsocketListenerEvent, WebsocketListenerType, WebsocketMessage } from '../types/websocket';
 import { Interface } from './interface';
+import { GeoLocation } from '../services/geolocation';
+import { container } from 'tsyringe';
 
 @singleton()
 @injectable()
@@ -304,6 +306,31 @@ export class REST extends IStatefulService {
             users[user.userId] = user.password;
         }
         this.router.use((basicAuth as any)({ users, challenge: false }));
+
+        // Add IP country lookup endpoint
+        this.router.get('/ip-country/:ip', async (req, res) => {
+            try {
+                if (!this.manager.initDone) {
+                    res.sendStatus(503);
+                    return;
+                }
+
+                const ip = req.params.ip;
+                
+                // Skip authentication for this endpoint since it's simple data lookup
+                // Get the geolocation service from the container
+                const geoLocationService = container.resolve(GeoLocation);
+                
+                // Get country from IP
+                const country = await geoLocationService.getCountryFromIp(ip);
+                
+                // Return the result
+                res.json({ country });
+            } catch (error) {
+                this.log.log(LogLevel.ERROR, `Error in IP country lookup: ${error.message}`);
+                res.status(500).json({ error: 'Server error' });
+            }
+        });
 
         const commandMap = this.eventInterface.commandMap || new Map();
         for (const [resource, command] of commandMap) {

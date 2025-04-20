@@ -10,19 +10,6 @@ import WordArray from 'crypto-js/lib-typedarrays';
 import Base64 from 'crypto-js/enc-base64';
 import bigInt from 'big-integer';
 
-// Add TypeScript declaration for geoip2
-declare global {
-    interface Window {
-        geoip2: {
-            country: (
-                success: (response: any) => void,
-                error: (error: any) => void,
-                options: { ipAddress: string }
-            ) => void;
-        };
-    }
-}
-
 // Simple enum for log levels
 enum LogLevel {
     DEBUG = 0,
@@ -687,7 +674,7 @@ export class PlayersService {
             return this.countryCache.get(cleanedIp)!;
         }
 
-        // Hard-coded mappings for common test IPs
+        // Hard-coded mappings for common test IPs (kept for offline testing)
         const knownIps = {
             '127.0.0.1': 'LH', // localhost
             '192.168.1.1': 'LN', // local network
@@ -703,89 +690,26 @@ export class PlayersService {
         }
 
         try {
-            // Ensure geoip2 library is loaded
-            if (!window.geoip2) {
-                console.log('DIRECT: Loading geoip2 library...');
-                await this.loadGeoIP2Library();
-            }
-
-            return new Promise((resolve) => {
-                console.log(`DIRECT: Using geoip2 for ${cleanedIp}...`);
-                
-                // Set a timeout for the entire operation
-                const timeoutId = setTimeout(() => {
-                    console.log(`DIRECT: ⏱️ geoip2 lookup timed out for ${cleanedIp}`);
-                    this.countryCache.set(cleanedIp, 'Unknown');
-                    resolve('Unknown');
-                }, 5000);
-                
-                try {
-                    // Use geoip2 country lookup
-                    window.geoip2.country(
-                        // Success callback
-                        (response) => {
-                            clearTimeout(timeoutId);
-                            console.log(`DIRECT: geoip2 response for ${cleanedIp}:`, response);
-                            
-                            let country = 'Unknown';
-                            if (response && response.country && response.country.isoCode) {
-                                country = response.country.isoCode;
-                                console.log(`DIRECT: ✅ Found country ${country} for IP ${cleanedIp}`);
-                            } else {
-                                console.log(`DIRECT: ❌ No country data in geoip2 response for ${cleanedIp}`);
-                            }
-                            
-                            // Cache the result
-                            this.countryCache.set(cleanedIp, country);
-                            resolve(country);
-                        },
-                        // Error callback
-                        (error) => {
-                            clearTimeout(timeoutId);
-                            console.error(`DIRECT: ❌ geoip2 lookup error for ${cleanedIp}`, error);
-                            this.countryCache.set(cleanedIp, 'Unknown');
-                            resolve('Unknown');
-                        },
-                        // Options - with the IP to look up
-                        { ipAddress: cleanedIp }
-                    );
-                } catch (innerError) {
-                    clearTimeout(timeoutId);
-                    console.error(`DIRECT: ❌ Error calling geoip2 API for ${cleanedIp}`, innerError);
-                    this.countryCache.set(cleanedIp, 'Unknown');
-                    resolve('Unknown');
-                }
-            });
-        } catch (error) {
-            console.error(`DIRECT: ❌ Error in IP lookup for ${cleanedIp}`, error);
+            // Call our server-side endpoint for IP geolocation
+            console.log(`DIRECT: Calling server for IP lookup ${cleanedIp}...`);
             
-            // Just return Unknown on any error
+            const response = await this.appCommon.apiGET(`ip-country/${cleanedIp}`).toPromise();
+            const data = JSON.parse(response);
+            
+            const country = data?.country || 'Unknown';
+            console.log(`DIRECT: Server returned country ${country} for IP ${cleanedIp}`);
+            
+            // Cache the result
+            this.countryCache.set(cleanedIp, country);
+            return country;
+            
+        } catch (error) {
+            console.error(`DIRECT: Error in server IP lookup for ${cleanedIp}`, error);
+            
+            // Cache the failure to prevent repeated lookups
             this.countryCache.set(cleanedIp, 'Unknown');
             return 'Unknown';
         }
-    }
-    
-    // Helper to load the geoip2 library dynamically
-    private loadGeoIP2Library(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            if (window.geoip2) {
-                resolve();
-                return;
-            }
-
-            const script = document.createElement('script');
-            script.type = 'text/javascript';
-            script.src = 'https://geoip-js.com/js/apis/geoip2/v2.1/geoip2.js';
-            script.onload = () => {
-                console.log('DIRECT: geoip2 library loaded successfully');
-                resolve();
-            };
-            script.onerror = (error) => {
-                console.error('DIRECT: Failed to load geoip2 library', error);
-                reject(error);
-            };
-            document.head.appendChild(script);
-        });
     }
     
     // Helper to validate IP format
