@@ -5,6 +5,7 @@ import { LoggerFactory } from './loggerfactory';
 import { IStatefulService } from '../types/service';
 import { LogLevel } from '../util/logger';
 import { Paths } from './paths';
+import * as maxmind from 'maxmind';
 
 // Simple in-memory cache
 interface CacheEntry {
@@ -30,7 +31,7 @@ export class GeoLocation extends IStatefulService {
 
     // Add MaxMind implementation
     private readonly MAXMIND_DB_FILENAME = 'GeoLite2-Country.mmdb';
-    private maxmindReader: any = null;
+    private maxmindReader: maxmind.Reader<maxmind.CountryResponse> | null = null;
 
     constructor(
         loggerFactory: LoggerFactory,
@@ -38,8 +39,8 @@ export class GeoLocation extends IStatefulService {
     ) {
         super(loggerFactory.createLogger('GeoLocation'));
         
-        // Set up paths
-        this.dbDir = path.join(this.paths.getDataDir(), 'geoip');
+        // Set up paths - using cwd() instead of getDataDir() which doesn't exist
+        this.dbDir = path.join(this.paths.cwd(), 'data', 'geoip');
         this.cacheFilePath = path.join(this.dbDir, this.CACHE_FILE);
         
         // Ensure directory exists
@@ -135,7 +136,15 @@ export class GeoLocation extends IStatefulService {
         try {
             if (fs.existsSync(this.cacheFilePath)) {
                 const cacheData = JSON.parse(fs.readFileSync(this.cacheFilePath, 'utf8'));
-                this.ipCache = new Map(Object.entries(cacheData));
+                
+                // Convert object to Map without using Object.entries
+                this.ipCache = new Map();
+                for (const ip in cacheData) {
+                    if (cacheData.hasOwnProperty(ip)) {
+                        this.ipCache.set(ip, cacheData[ip]);
+                    }
+                }
+                
                 this.log.log(LogLevel.INFO, `Loaded IP cache with ${this.ipCache.size} entries`);
             }
         } catch (error) {
@@ -149,7 +158,12 @@ export class GeoLocation extends IStatefulService {
      */
     private saveCache(): void {
         try {
-            const cacheObject = Object.fromEntries(this.ipCache);
+            // Convert Map to object without using Object.fromEntries
+            const cacheObject = {};
+            this.ipCache.forEach((value, key) => {
+                cacheObject[key] = value;
+            });
+            
             fs.writeFileSync(this.cacheFilePath, JSON.stringify(cacheObject, null, 2));
             this.log.log(LogLevel.DEBUG, `Saved IP cache with ${this.ipCache.size} entries`);
         } catch (error) {
@@ -222,17 +236,9 @@ export class GeoLocation extends IStatefulService {
         }
         
         try {
-            // Dynamically import maxmind to avoid dependency issues 
-            // if the module is not installed
-            try {
-                const maxmind = await import('maxmind');
-                this.maxmindReader = await maxmind.open(dbPath);
-                this.log.log(LogLevel.IMPORTANT, 'MaxMind GeoIP database loaded successfully');
-            } catch (importError) {
-                this.log.log(LogLevel.WARN, 
-                    'MaxMind module not available. Install it with: npm install maxmind'
-                );
-            }
+            // Now we can use proper import since we've added the library to package.json
+            this.maxmindReader = await maxmind.open<maxmind.CountryResponse>(dbPath);
+            this.log.log(LogLevel.IMPORTANT, 'MaxMind GeoIP database loaded successfully');
         } catch (error) {
             this.log.log(LogLevel.ERROR, `Failed to load MaxMind database: ${error.message}`);
         }
