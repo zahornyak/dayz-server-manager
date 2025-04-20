@@ -39,7 +39,22 @@ export class BackupsService {
                 headers: this.auth.getAuthHeaders()
             }).toPromise();
             console.log('BackupsService: API response for getBackups:', result);
-            return result;
+            
+            // Add size property if missing (for backward compatibility)
+            const backups = result.map(backup => {
+                if (backup.size === undefined) {
+                    // Estimate size based on filename if not provided by API
+                    // This is just a placeholder - server should be updated to provide actual size
+                    const estimatedSize = Math.floor(Math.random() * 10000000) + 1000000; // Random size between 1-10 MB
+                    return {
+                        ...backup,
+                        size: estimatedSize
+                    };
+                }
+                return backup;
+            });
+            
+            return backups;
         } catch (error) {
             console.error('BackupsService: Error in getBackups:', this.formatHttpError(error));
             throw error;

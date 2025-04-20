@@ -191,7 +191,47 @@ export class BackupsComponent implements OnInit {
     // New methods for multiple schedules
     public async addSchedule(): Promise<void> {
         try {
-            const addedSchedule = await this.backupsService.addBackupSchedule(this.newSchedule);
+            // Try to use the new multi-schedule API
+            let addedSchedule: BackupSchedule;
+            try {
+                addedSchedule = await this.backupsService.addBackupSchedule(this.newSchedule);
+            } catch (error) {
+                // If we get a 404, the server doesn't support the new API yet
+                // Fall back to the legacy API
+                console.log('New schedule API not available, falling back to legacy API');
+                
+                // Use the legacy API to set the schedule
+                const success = await this.backupsService.scheduleBackup(this.newSchedule.cronExpression);
+                if (!success) {
+                    throw new Error('Failed to create schedule using legacy API');
+                }
+                
+                // If enabled is different from current state, toggle it
+                if (this.newSchedule.enabled !== this.backupSchedule.enabled) {
+                    const toggleSuccess = await this.backupsService.enableBackupSchedule(this.newSchedule.enabled);
+                    if (!toggleSuccess) {
+                        throw new Error('Failed to enable/disable schedule using legacy API');
+                    }
+                }
+                
+                // Create a local fake schedule object since the server doesn't support multiple
+                addedSchedule = {
+                    id: 'legacy',
+                    enabled: this.newSchedule.enabled,
+                    cronExpression: this.newSchedule.cronExpression,
+                    description: this.newSchedule.description || 'Legacy Schedule'
+                };
+                
+                // Update our local legacy schedule reference
+                this.backupSchedule = {
+                    enabled: this.newSchedule.enabled,
+                    cronExpression: this.newSchedule.cronExpression
+                };
+                
+                // Clear existing schedules since we can only have one with legacy API
+                this.backupSchedules = [];
+            }
+            
             this.backupSchedules.push(addedSchedule);
             this.resetNewSchedule();
             this.outcomeBadge = {
@@ -302,8 +342,8 @@ export class BackupsComponent implements OnInit {
         return new Date(timestamp).toLocaleString();
     }
 
-    public formatSize(bytes: number): string {
-        if (bytes === 0) return '0 Bytes';
+    public formatSize(bytes: number | undefined | null): string {
+        if (bytes === undefined || bytes === null || bytes === 0) return '0 Bytes';
         
         const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(1024));
