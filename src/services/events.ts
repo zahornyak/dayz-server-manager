@@ -40,6 +40,26 @@ export class Events extends IStatefulService {
                     this.log.log(LogLevel.WARN, `Skipping event '${event.name}' because it has no cron expression`);
                     continue;
                 }
+                
+                // Validate cron expression
+                try {
+                    // Check if cron expression is valid
+                    const isValid = cron.validate(event.cron);
+                    this.log.log(LogLevel.IMPORTANT, 
+                        `Cron validation for '${event.name}': ${isValid ? 'Valid' : 'Invalid'}`);
+                    
+                    if (!isValid) {
+                        this.log.log(LogLevel.ERROR, 
+                            `Invalid cron expression for event '${event.name}': ${event.cron}`);
+                        this.log.log(LogLevel.INFO, 
+                            `Common examples: "* * * * *" (every minute), "0 * * * *" (hourly), "0 0 * * *" (daily at midnight)`);
+                        continue;
+                    }
+                } catch (cronError) {
+                    this.log.log(LogLevel.ERROR, 
+                        `Failed to validate cron expression for event '${event.name}': ${event.cron}`, cronError);
+                    continue;
+                }
 
                 const job = cron.scheduleJob(
                     event.name,
@@ -62,6 +82,12 @@ export class Events extends IStatefulService {
                         }
                     },
                 );
+
+                if (!job) {
+                    this.log.log(LogLevel.ERROR, 
+                        `Failed to create job for event '${event.name}' with cron: ${event.cron} - scheduleJob returned null`);
+                    continue;
+                }
 
                 const nextRun = job.nextInvocation().toISOString();
                 this.log.log(
@@ -149,7 +175,24 @@ export class Events extends IStatefulService {
                 break;
             }
             case 'backup': {
-                this.runTask(event, () => this.backup.createBackup());
+                // Special debug logging for backup tasks
+                this.log.log(LogLevel.IMPORTANT, 
+                    `Backup task triggered: '${event.name}' with cron '${event.cron}'`);
+                
+                this.runTask(event, async () => {
+                    try {
+                        this.log.log(LogLevel.IMPORTANT, 
+                            `Starting scheduled backup execution from '${event.name}'`);
+                        await this.backup.createBackup();
+                        this.log.log(LogLevel.IMPORTANT, 
+                            `Successfully completed scheduled backup from '${event.name}'`);
+                        return true;
+                    } catch (error) {
+                        this.log.log(LogLevel.ERROR, 
+                            `Failed to execute scheduled backup from '${event.name}'`, error);
+                        return false;
+                    }
+                });
                 break;
             }
             default: {
