@@ -92,6 +92,30 @@ export class Backups extends IService {
         }
     }
 
+    public async deleteBackup(backupName: string): Promise<boolean> {
+        try {
+            this.log.log(LogLevel.INFO, `Starting deletion process for backup: ${backupName}`);
+            const backupDir = this.getBackupDir();
+            const backupPath = path.join(backupDir, backupName);
+            
+            this.log.log(LogLevel.DEBUG, `Checking if backup exists at path: ${backupPath}`);
+            if (!this.fs.existsSync(backupPath)) {
+                this.log.log(LogLevel.ERROR, `Backup ${backupName} does not exist at path: ${backupPath}`);
+                return false;
+            }
+            
+            // Delete the backup directory
+            this.log.log(LogLevel.INFO, `Removing backup directory: ${backupPath}`);
+            await this.paths.removeLink(backupPath);
+            
+            this.log.log(LogLevel.IMPORTANT, `Successfully deleted backup ${backupName}`);
+            return true;
+        } catch (error) {
+            this.log.log(LogLevel.ERROR, `Failed to delete backup ${backupName}`, error);
+            return false;
+        }
+    }
+
     private getBackupDir(): string {
         if (this.paths.isAbsolute(this.manager.config.backupPath)) {
             const backupPath = this.manager.config.backupPath;

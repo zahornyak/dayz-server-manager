@@ -171,9 +171,13 @@
                                     <td>{{ formatDate(backup.mtime) }}</td>
                                     <td>{{ formatSize(backup.size) }}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-warning" [disabled]="restoring"
+                                        <button class="btn btn-sm btn-warning mr-1" [disabled]="restoring"
                                             (click)="restoreBackup(backup.file)">
                                             <fa-icon class="mr-1" [icon]='["fas", "undo"]'></fa-icon>Restore
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" [disabled]="restoring"
+                                            (click)="deleteBackup(backup.file)">
+                                            <fa-icon class="mr-1" [icon]='["fas", "trash"]'></fa-icon>Delete
                                         </button>
                                     </td>
                                 </tr>

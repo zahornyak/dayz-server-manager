@@ -308,6 +308,12 @@ export class Interface extends IService {
                 params: [{ name: 'backup' }],
                 action: (req, params) => this.backup.restoreBackup(params.backup),
             })],
+            ['deletebackup', RequestTemplate.build({
+                method: 'delete',
+                level: 'manage',
+                params: [{ name: 'backup', location: 'query' }],
+                action: (req, params) => this.backup.deleteBackup(params.backup),
+            })],
             ['schedulebackup', RequestTemplate.build({
                 method: 'post',
                 level: 'manage',

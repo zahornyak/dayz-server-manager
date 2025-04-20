@@ -137,6 +137,21 @@ export class BackupsService {
         }
     }
 
+    public async deleteBackup(backupName: string): Promise<boolean> {
+        console.log(`BackupsService: Calling API to delete backup "${backupName}"`);
+        try {
+            const result = await this.http.delete<boolean>('api/deletebackup', { 
+                headers: this.auth.getAuthHeaders(),
+                params: { backup: backupName }
+            }).toPromise();
+            console.log('BackupsService: API response for deleteBackup:', result);
+            return result;
+        } catch (error) {
+            console.error('BackupsService: Error in deleteBackup:', this.formatHttpError(error));
+            throw error;
+        }
+    }
+
     // Legacy method - kept for backward compatibility
     public async scheduleBackup(cronExpression: string): Promise<boolean> {
         console.log(`BackupsService: Calling API to schedule backup with cron "${cronExpression}"`);

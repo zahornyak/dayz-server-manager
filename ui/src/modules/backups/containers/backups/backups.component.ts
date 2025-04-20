@@ -170,6 +170,36 @@ export class BackupsComponent implements OnInit {
         }
     }
 
+    public async deleteBackup(backup: string): Promise<void> {
+        if (confirm(`Are you sure you want to delete the backup "${backup}"? This cannot be undone.`)) {
+            this.restoring = true; // Use the same loading flag
+            try {
+                const success = await this.backupsService.deleteBackup(backup);
+                if (success) {
+                    this.outcomeBadge = {
+                        message: 'Successfully deleted backup',
+                        success: true,
+                    };
+                    // Remove the deleted backup from the list
+                    this.backups = this.backups.filter(b => b.file !== backup);
+                } else {
+                    this.outcomeBadge = {
+                        message: 'Failed to delete backup',
+                        success: false,
+                    };
+                }
+            } catch (error) {
+                console.error('Failed to delete backup', error);
+                this.outcomeBadge = {
+                    message: 'Failed to delete backup: ' + this.getErrorMessage(error),
+                    success: false,
+                };
+            } finally {
+                this.restoring = false;
+            }
+        }
+    }
+
     public async saveSchedule(): Promise<void> {
         try {
             const success = await this.backupsService.scheduleBackup(this.backupSchedule.cronExpression);

@@ -33,34 +33,50 @@ export class Events extends IStatefulService {
 
     public async start(): Promise<void> {
         for (const event of (this.manager.config.events ?? [])) {
+            try {
+                this.log.log(LogLevel.IMPORTANT, `Attempting to schedule event '${event.name}' with cron: ${event.cron}`);
 
-            const job = cron.scheduleJob(
-                event.name,
-                event.cron,
-                () => {
-                    if (this.skipEvents) {
-                        this.log.log(LogLevel.IMPORTANT, `Skipping task '${event.name}' (${event.type}) because events are skipped`);
-                        return;
-                    }
+                if (!event.cron) {
+                    this.log.log(LogLevel.WARN, `Skipping event '${event.name}' because it has no cron expression`);
+                    continue;
+                }
 
-                    try {
-                        this.execute(event);
-                    } catch (e) {
-                        this.log.log(
-                            LogLevel.ERROR,
-                            `Error executing task '${event.name}' (${event.type}). Check your config for errors!`,
-                            e,
-                        );
-                    }
-                },
-            );
+                const job = cron.scheduleJob(
+                    event.name,
+                    event.cron,
+                    () => {
+                        if (this.skipEvents) {
+                            this.log.log(LogLevel.IMPORTANT, `Skipping task '${event.name}' (${event.type}) because events are skipped`);
+                            return;
+                        }
 
-            this.log.log(
-                LogLevel.INFO,
-                `Scheduled '${event.name}' with pattern: ${event.cron} (Next run: ${job.nextInvocation().toISOString()})`,
-            );
+                        try {
+                            this.log.log(LogLevel.IMPORTANT, `Executing scheduled task '${event.name}' (${event.type})`);
+                            this.execute(event);
+                        } catch (e) {
+                            this.log.log(
+                                LogLevel.ERROR,
+                                `Error executing task '${event.name}' (${event.type}). Check your config for errors!`,
+                                e,
+                            );
+                        }
+                    },
+                );
 
-            this.tasks.push(job);
+                const nextRun = job.nextInvocation().toISOString();
+                this.log.log(
+                    LogLevel.IMPORTANT,
+                    `Successfully scheduled '${event.name}' with pattern: ${event.cron} (Next run: ${nextRun})`,
+                );
+
+                this.tasks.push(job);
+            } catch (e) {
+                this.log.log(
+                    LogLevel.ERROR,
+                    `Failed to schedule event '${event.name}' with cron: ${event.cron}`,
+                    e
+                );
+            }
         }
     }
 
