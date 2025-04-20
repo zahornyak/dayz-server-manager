@@ -15,11 +15,12 @@ export class BackupsService {
     public async createBackup(): Promise<boolean> {
         console.log('BackupsService: Calling API to create backup');
         try {
-            const result = await this.http.post<boolean>('api/backup', {}, { 
-                headers: this.auth.getAuthHeaders() 
+            const result = await this.http.post('api/backup', {}, { 
+                headers: this.auth.getAuthHeaders(),
+                responseType: 'text'
             }).toPromise();
             console.log('BackupsService: API response for createBackup:', result);
-            return result;
+            return result === 'true' || result === true;
         } catch (error) {
             console.error('BackupsService: Error in createBackup:', this.formatHttpError(error));
             throw error;
