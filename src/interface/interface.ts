@@ -302,6 +302,29 @@ export class Interface extends IService {
                 level: 'manage',
                 action: () => this.backup.getBackups(),
             })],
+            ['restorebackup', RequestTemplate.build({
+                method: 'post',
+                level: 'manage',
+                params: [{ name: 'backup' }],
+                action: (req, params) => this.backup.restoreBackup(params.backup),
+            })],
+            ['schedulebackup', RequestTemplate.build({
+                method: 'post',
+                level: 'manage',
+                params: [{ name: 'cronExpression' }],
+                action: (req, params) => this.manager.scheduleBackup(params.cronExpression),
+            })],
+            ['getbackupschedule', RequestTemplate.build({
+                method: 'get',
+                level: 'manage',
+                action: () => this.manager.getBackupSchedule(),
+            })],
+            ['enablebackupschedule', RequestTemplate.build({
+                method: 'post',
+                level: 'manage',
+                params: [{ name: 'enabled', parse: parseBoolean }],
+                action: (req, params) => this.manager.enableBackupSchedule(params.enabled),
+            })],
             ['writemissionfile', RequestTemplate.build({
                 method: 'post',
                 level: 'manage',

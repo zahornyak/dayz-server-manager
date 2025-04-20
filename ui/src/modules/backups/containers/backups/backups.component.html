@@ -1,0 +1,86 @@
+<sb-layout-dashboard>
+    <sb-dashboard-head title="Backup and Restore" [hideBreadcrumbs]="false"></sb-dashboard-head>
+    <sb-card>
+        <div class="card-header">
+            <fa-icon class="mr-1" [icon]='["fas", "save"]'></fa-icon>Backup and Restore
+        </div>
+        <div class="card-body" *ngIf="!loading">
+            <ngb-alert *ngIf="outcomeBadge" [type]="outcomeBadge.success ? 'success' : 'danger'">
+                {{ outcomeBadge.message }}
+            </ngb-alert>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Manual Backup</h5>
+                    <div class="mb-3">
+                        <p>Create a backup of your mission files. This will save a copy of your current mpmissions folder.</p>
+                        <button class="btn btn-primary" (click)="createBackup()">
+                            <fa-icon class="mr-1" [icon]='["fas", "save"]'></fa-icon>Create Backup
+                        </button>
+                    </div>
+
+                    <h5>Automatic Backups</h5>
+                    <div class="mb-3">
+                        <p>Schedule automatic backups using cron expressions. For example, "0 0 * * *" runs at midnight every day.</p>
+                        <div class="form-group">
+                            <label for="cronExpression">Cron Schedule:</label>
+                            <input type="text" class="form-control" id="cronExpression" 
+                                [(ngModel)]="backupSchedule.cronExpression">
+                            <small class="form-text text-muted">
+                                Format: min hour day-of-month month day-of-week
+                            </small>
+                        </div>
+                        <div class="form-group form-check">
+                            <input type="checkbox" class="form-check-input" id="enableSchedule" 
+                                [checked]="backupSchedule.enabled" (change)="toggleSchedule()">
+                            <label class="form-check-label" for="enableSchedule">Enable automatic backups</label>
+                        </div>
+                        <button class="btn btn-primary" (click)="saveSchedule()">
+                            <fa-icon class="mr-1" [icon]='["fas", "clock"]'></fa-icon>Save Schedule
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <h5>Available Backups</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Backup Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr *ngIf="backups.length === 0">
+                                    <td colspan="2" class="text-center">No backups available</td>
+                                </tr>
+                                <tr *ngFor="let backup of backups">
+                                    <td>{{ formatDate(backup.mtime) }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-warning" [disabled]="restoring"
+                                            (click)="restoreBackup(backup.file)">
+                                            <fa-icon class="mr-1" [icon]='["fas", "undo"]'></fa-icon>Restore
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-info mt-3">
+                        <h6>Restore Instructions:</h6>
+                        <p>Restoring a backup will replace your current mission files with the selected backup. The server will need to be restarted after restore.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body" *ngIf="loading">
+            <div class="d-flex justify-content-center">
+                <div class="spinner-border" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </sb-card>
+</sb-layout-dashboard> 

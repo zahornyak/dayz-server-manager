@@ -48,6 +48,12 @@ const routes: Routes = [
             import('../modules/maintenance/maintenance-routing.module').then((m) => m.MaintenanceRoutingModule),
     },
     {
+        path: 'dashboard/backups',
+        canActivate: [AuthGuard],
+        loadChildren: () =>
+            import('../modules/backups/backups-routing.module').then((m) => m.BackupsRoutingModule),
+    },
+    {
         path: 'dashboard/settings',
         canActivate: [AuthGuard],
         loadChildren: () =>
