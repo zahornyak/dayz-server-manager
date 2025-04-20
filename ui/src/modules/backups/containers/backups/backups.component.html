@@ -19,25 +19,123 @@
                         </button>
                     </div>
 
-                    <h5>Automatic Backups</h5>
+                    <h5>Backup Schedules</h5>
                     <div class="mb-3">
-                        <p>Schedule automatic backups using cron expressions. For example, "0 0 * * *" runs at midnight every day.</p>
-                        <div class="form-group">
-                            <label for="cronExpression">Cron Schedule:</label>
-                            <input type="text" class="form-control" id="cronExpression" 
-                                [(ngModel)]="backupSchedule.cronExpression">
-                            <small class="form-text text-muted">
-                                Format: min hour day-of-month month day-of-week
-                            </small>
+                        <p>Set up multiple backup schedules using cron expressions. For example, "0 0 * * *" runs at midnight every day.</p>
+                        
+                        <!-- Existing schedules -->
+                        <div class="table-responsive" *ngIf="backupSchedules.length > 0">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Description</th>
+                                        <th>Cron Schedule</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr *ngFor="let schedule of backupSchedules">
+                                        <td *ngIf="editingSchedule?.id !== schedule.id">{{ schedule.description || 'No description' }}</td>
+                                        <td *ngIf="editingSchedule?.id !== schedule.id">{{ schedule.cronExpression }}</td>
+                                        <td *ngIf="editingSchedule?.id !== schedule.id">
+                                            <span class="badge" [ngClass]="schedule.enabled ? 'badge-success' : 'badge-secondary'">
+                                                {{ schedule.enabled ? 'Enabled' : 'Disabled' }}
+                                            </span>
+                                        </td>
+                                        <td *ngIf="editingSchedule?.id !== schedule.id">
+                                            <button class="btn btn-sm btn-success mr-1" (click)="toggleScheduleEnabled(schedule)">
+                                                <fa-icon [icon]="schedule.enabled ? ['fas', 'toggle-on'] : ['fas', 'toggle-off']"></fa-icon>
+                                            </button>
+                                            <button class="btn btn-sm btn-primary mr-1" (click)="editSchedule(schedule)">
+                                                <fa-icon [icon]='["fas", "edit"]'></fa-icon>
+                                            </button>
+                                            <button class="btn btn-sm btn-danger" (click)="deleteSchedule(schedule.id)">
+                                                <fa-icon [icon]='["fas", "trash"]'></fa-icon>
+                                            </button>
+                                        </td>
+                                        
+                                        <!-- Edit mode -->
+                                        <td colspan="4" *ngIf="editingSchedule?.id === schedule.id">
+                                            <div class="form-group">
+                                                <label>Description:</label>
+                                                <input type="text" class="form-control" [(ngModel)]="editingSchedule.description">
+                                            </div>
+                                            <div class="form-group">
+                                                <label>Cron Expression:</label>
+                                                <input type="text" class="form-control" [(ngModel)]="editingSchedule.cronExpression">
+                                                <small class="form-text text-muted">
+                                                    Format: min hour day-of-month month day-of-week
+                                                </small>
+                                            </div>
+                                            <div class="form-group form-check">
+                                                <input type="checkbox" class="form-check-input" id="editEnabled" 
+                                                    [(ngModel)]="editingSchedule.enabled">
+                                                <label class="form-check-label" for="editEnabled">Enabled</label>
+                                            </div>
+                                            <div>
+                                                <button class="btn btn-primary mr-2" (click)="updateSchedule(editingSchedule)">
+                                                    Save
+                                                </button>
+                                                <button class="btn btn-secondary" (click)="cancelEdit()">
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="form-group form-check">
-                            <input type="checkbox" class="form-check-input" id="enableSchedule" 
-                                [checked]="backupSchedule.enabled" (change)="toggleSchedule()">
-                            <label class="form-check-label" for="enableSchedule">Enable automatic backups</label>
+                        
+                        <!-- Add new schedule form -->
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">Add New Schedule</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label>Description:</label>
+                                    <input type="text" class="form-control" [(ngModel)]="newSchedule.description" 
+                                        placeholder="e.g., Daily midnight backup">
+                                </div>
+                                <div class="form-group">
+                                    <label>Cron Expression:</label>
+                                    <input type="text" class="form-control" [(ngModel)]="newSchedule.cronExpression">
+                                    <small class="form-text text-muted">
+                                        Format: min hour day-of-month month day-of-week
+                                    </small>
+                                </div>
+                                <div class="form-group form-check">
+                                    <input type="checkbox" class="form-check-input" id="newEnabled" 
+                                        [(ngModel)]="newSchedule.enabled">
+                                    <label class="form-check-label" for="newEnabled">Enabled</label>
+                                </div>
+                                <button class="btn btn-success" (click)="addSchedule()">
+                                    <fa-icon class="mr-1" [icon]='["fas", "plus"]'></fa-icon>Add Schedule
+                                </button>
+                            </div>
                         </div>
-                        <button class="btn btn-primary" (click)="saveSchedule()">
-                            <fa-icon class="mr-1" [icon]='["fas", "clock"]'></fa-icon>Save Schedule
-                        </button>
+
+                        <!-- Legacy schedule UI if API doesn't support multiple schedules yet -->
+                        <div class="alert alert-warning mt-3" *ngIf="backupSchedules.length === 0">
+                            <h6>Using Legacy Schedule</h6>
+                            <div class="form-group">
+                                <label for="cronExpression">Cron Schedule:</label>
+                                <input type="text" class="form-control" id="cronExpression" 
+                                    [(ngModel)]="backupSchedule.cronExpression">
+                                <small class="form-text text-muted">
+                                    Format: min hour day-of-month month day-of-week
+                                </small>
+                            </div>
+                            <div class="form-group form-check">
+                                <input type="checkbox" class="form-check-input" id="enableSchedule" 
+                                    [checked]="backupSchedule.enabled" (change)="toggleSchedule()">
+                                <label class="form-check-label" for="enableSchedule">Enable automatic backups</label>
+                            </div>
+                            <button class="btn btn-primary" (click)="saveSchedule()">
+                                <fa-icon class="mr-1" [icon]='["fas", "clock"]'></fa-icon>Save Schedule
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -48,15 +146,17 @@
                             <thead>
                                 <tr>
                                     <th>Backup Date</th>
+                                    <th>Size</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr *ngIf="backups.length === 0">
-                                    <td colspan="2" class="text-center">No backups available</td>
+                                    <td colspan="3" class="text-center">No backups available</td>
                                 </tr>
                                 <tr *ngFor="let backup of backups">
                                     <td>{{ formatDate(backup.mtime) }}</td>
+                                    <td>{{ formatSize(backup.size) }}</td>
                                     <td>
                                         <button class="btn btn-sm btn-warning" [disabled]="restoring"
                                             (click)="restoreBackup(backup.file)">
