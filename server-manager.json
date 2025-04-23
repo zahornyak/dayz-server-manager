@@ -1,0 +1,24 @@
+{
+  "backupMaxAge": 14,
+  
+  "events": [
+    {
+      "name": "Frequent Backup (Every 5 Minutes)",
+      "type": "backup",
+      "cron": "*/5 * * * *",
+      "params": ["5min-backup"]
+    },
+    {
+      "name": "Hourly Backup",
+      "type": "backup",
+      "cron": "0 * * * *",
+      "params": ["hourly-backup"]
+    },
+    {
+      "name": "Daily Backup",
+      "type": "backup",
+      "cron": "0 0 * * *",
+      "params": ["daily-backup"]
+    }
+  ]
+} 

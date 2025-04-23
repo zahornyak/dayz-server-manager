@@ -291,11 +291,10 @@ export class Interface extends IService {
                     validate: params?.validate,
                 }),
             })],
-            ['backup', RequestTemplate.build({
+            ['createbackup', RequestTemplate.build({
                 method: 'post',
                 level: 'manage',
-                noResponse: true,
-                action: () => this.backup.createBackup(),
+                action: () => this.backup.createBackup([]),
             })],
             ['getbackups', RequestTemplate.build({
                 method: 'get',

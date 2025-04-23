@@ -189,7 +189,7 @@ export class Events extends IStatefulService {
                     try {
                         this.log.log(LogLevel.IMPORTANT, 
                             `Starting scheduled backup execution from '${event.name}'`);
-                        await this.backup.createBackup();
+                        await this.backup.createBackup(event.params);
                         this.log.log(LogLevel.IMPORTANT, 
                             `Successfully completed scheduled backup from '${event.name}'`);
                         return true;

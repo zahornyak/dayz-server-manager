@@ -1,0 +1,11 @@
+# Instructions for setting up cron job:
+# Run the following command to edit your crontab:
+# crontab -e
+
+# Then add the following line to run the cleanup script every hour:
+0 * * * * /path/to/backup-cleanup.sh >> /path/to/backup-cleanup.log 2>&1
+
+# Make sure to set execution permissions on the script:
+# chmod +x /path/to/backup-cleanup.sh
+
+# Replace /path/to with the actual path to your script and log file 

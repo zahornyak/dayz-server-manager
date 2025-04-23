@@ -113,7 +113,7 @@ export class MissionFiles extends IService {
             return;
         }
         if (createBackup) {
-            await this.backup.createBackup();
+            await this.backup.createBackup(['file-edit']);
         }
         await this.fs.promises.mkdir(path.dirname(filePath), { recursive: true });
         await this.fs.promises.writeFile(filePath, content);
@@ -121,11 +121,15 @@ export class MissionFiles extends IService {
         await this.hooks.executeHooks(HookTypeEnum.missionChanged);
     }
 
-    public async writeMissionFile(
-        file: string,
-        content: string,
-        createBackup?: boolean,
-    ): Promise<void> {
+    public async writeMissionFile(file: string, content: string, createBackup = true): Promise<void> {
+        this.log.log(LogLevel.IMPORTANT, `Writing mission file: ${file}`);
+        const fullPath = this.getMissionPath(file);
+
+        if (createBackup) {
+            this.log.log(LogLevel.INFO, 'Creating backup before modifying mission file');
+            await this.backup.createBackup(['mission-file-edit']);
+        }
+
         if (!file || !content) {
             return;
         }

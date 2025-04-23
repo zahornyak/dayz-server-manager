@@ -21,7 +21,7 @@ export class Backups extends IService {
         super(loggerFactory.createLogger('Backups'));
     }
 
-    public async createBackup(): Promise<void> {
+    public async createBackup(eventParams?: string[]): Promise<void> {
         try {
             this.log.log(LogLevel.INFO, 'Starting backup creation process');
             const backups = this.getBackupDir();
@@ -38,7 +38,9 @@ export class Backups extends IService {
             }
             
             const now = new Date();
-            const curMarker = `mpmissions_${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
+            // Add the backup type from eventParams to the folder name if provided
+            const paramSuffix = eventParams && eventParams.length > 0 ? `-${eventParams[0]}` : '';
+            const curMarker = `mpmissions_${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}${paramSuffix}`;
             
             this.log.log(LogLevel.IMPORTANT, `Creating backup ${curMarker}`);
             
@@ -72,7 +74,7 @@ export class Backups extends IService {
             
             // Create a backup before restoring
             this.log.log(LogLevel.INFO, 'Creating safety backup before restoring');
-            await this.createBackup();
+            await this.createBackup(['pre-restore']);
             
             // Remove existing mpmissions directory if it exists
             if (this.fs.existsSync(mpmissionsPath)) {
