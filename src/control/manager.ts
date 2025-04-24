@@ -273,7 +273,8 @@ export class Manager {
             const backupEvents = this.config.events.filter(e => e.type === 'backup');
             
             const schedules = backupEvents.map(event => ({
-                id: event.name.replace(/[^a-zA-Z0-9-_]/g, '_'), // Create an ID from the name
+                // Use stored ID if available, otherwise create one from the name
+                id: event.id || event.name.replace(/[^a-zA-Z0-9-_]/g, '_'),
                 enabled: !!event.cron, // If it has a cron expression, it's enabled
                 cronExpression: event.cron || '',
                 description: event.params?.[0] || event.name // Use the first param as description or fallback to name
@@ -301,6 +302,9 @@ export class Manager {
             const timestamp = new Date().getTime().toString().substring(8); // Use last 5 digits
             const name = `${baseName.replace(/[^a-zA-Z0-9-_ ]/g, '_')}_${timestamp}`;
             
+            // Generate a unique ID
+            const id = `backup_${timestamp}`;
+            
             // Initialize events array if it doesn't exist
             if (!this.config.events) {
                 this.config.events = [];
@@ -311,16 +315,20 @@ export class Manager {
                 name,
                 type: 'backup' as 'backup',
                 cron: schedule.enabled ? schedule.cronExpression : undefined,
-                params: schedule.description ? [schedule.description] : undefined
+                params: schedule.description ? [schedule.description] : undefined,
+                id: id // Store the ID explicitly
             };
             
             // Add to the events array
             this.config.events.push(newEvent);
             
-            this.log.log(LogLevel.INFO, `Successfully added backup schedule with name: ${name}`);
+            // Save the configuration to file
+            this.saveConfig();
+            
+            this.log.log(LogLevel.INFO, `Successfully added backup schedule with name: ${name} and ID: ${id}`);
             
             return Promise.resolve({
-                id: name.replace(/[^a-zA-Z0-9-_]/g, '_'),
+                id: id,
                 enabled: schedule.enabled,
                 cronExpression: schedule.cronExpression,
                 description: schedule.description
@@ -328,6 +336,21 @@ export class Manager {
         } catch (error) {
             this.log.log(LogLevel.ERROR, 'Failed to add backup schedule', error);
             throw error;
+        }
+    }
+    
+    // Helper method to save configuration to file
+    private saveConfig(): void {
+        try {
+            // Get the path to the configuration file
+            const configPath = require('path').join(process.cwd(), 'server-manager.json');
+            
+            // Write the configuration to file
+            require('fs').writeFileSync(configPath, JSON.stringify(this.config, null, 4));
+            
+            this.log.log(LogLevel.INFO, 'Configuration saved to file');
+        } catch (error) {
+            this.log.log(LogLevel.ERROR, 'Failed to save configuration to file', error);
         }
     }
 
@@ -369,6 +392,9 @@ export class Manager {
                 event.params[0] = schedule.description;
             }
             
+            // Save changes to the config file
+            this.saveConfig();
+            
             this.log.log(LogLevel.INFO, `Successfully updated backup schedule with ID: ${schedule.id}`);
             return Promise.resolve(true);
         } catch (error) {
@@ -405,6 +431,9 @@ export class Manager {
             
             // Remove the event
             this.config.events.splice(eventIndex, 1);
+            
+            // Save changes to the config file
+            this.saveConfig();
             
             this.log.log(LogLevel.INFO, `Successfully deleted backup schedule with ID: ${scheduleId}`);
             return Promise.resolve(true);
