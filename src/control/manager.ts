@@ -407,6 +407,11 @@ export class Manager {
         try {
             this.log.log(LogLevel.INFO, `Deleting backup schedule with ID: ${scheduleId}`);
             
+            if (!scheduleId) {
+                this.log.log(LogLevel.ERROR, 'No schedule ID provided');
+                return Promise.resolve(false);
+            }
+            
             if (!this.config.events) {
                 this.log.log(LogLevel.ERROR, 'No events array in config, nothing to delete');
                 return Promise.resolve(false);
@@ -414,55 +419,84 @@ export class Manager {
             
             // Ensure scheduleId is properly formatted - handle URL encoding issues
             const decodedId = decodeURIComponent(scheduleId);
+            this.log.log(LogLevel.DEBUG, `Decoded ID: ${decodedId}`);
             
-            // Debug: Log all backup events to see what we're working with
+            // Debug: Log all backup events to help with diagnostics
             const backupEvents = this.config.events.filter(e => e.type === 'backup');
             this.log.log(LogLevel.DEBUG, `Found ${backupEvents.length} backup events`);
             backupEvents.forEach((event, index) => {
-                this.log.log(LogLevel.DEBUG, `Event ${index}: name=${event.name}, id=${event.id || 'undefined'}, normalized=${event.name.replace(/[^a-zA-Z0-9-_]/g, '_')}`);
+                this.log.log(LogLevel.DEBUG, `Event ${index}: name="${event.name}", id="${event.id || 'undefined'}", type="${event.type}"`);
             });
             
-            // Find the index of the event - look for either matching ID directly or normalized name
-            const eventIndex = this.config.events.findIndex(e => {
-                if (e.type !== 'backup') return false;
-                
-                // Try direct ID match if available
-                if (e.id === decodedId) {
-                    this.log.log(LogLevel.DEBUG, `Direct ID match found for ${decodedId}`);
-                    return true;
-                }
-                
-                // Try legacy normalized name match
-                const normalizedName = e.name.replace(/[^a-zA-Z0-9-_]/g, '_');
-                const nameMatch = normalizedName === decodedId;
-                if (nameMatch) {
-                    this.log.log(LogLevel.DEBUG, `Normalized name match found for ${decodedId} (${normalizedName})`);
-                }
-                
-                // Try matching by backup_[timestamp] pattern
-                if (decodedId.startsWith('backup_') && e.name.includes(decodedId.substring(7))) {
-                    this.log.log(LogLevel.DEBUG, `Timestamp match found for ${decodedId} in name: ${e.name}`);
-                    return true;
-                }
-                
-                return nameMatch;
-            });
+            // Try to find the event using multiple matching strategies
+            let foundEventIndex = -1;
             
-            if (eventIndex === -1) {
+            // Strategy 1: Direct ID match
+            foundEventIndex = this.config.events.findIndex(e => 
+                e.type === 'backup' && e.id === decodedId
+            );
+            
+            // Strategy 2: Normalized name match
+            if (foundEventIndex === -1) {
+                foundEventIndex = this.config.events.findIndex(e => 
+                    e.type === 'backup' && e.name && e.name.replace(/[^a-zA-Z0-9-_]/g, '_') === decodedId
+                );
+            }
+            
+            // Strategy 3: Match by timestamp in ID
+            if (foundEventIndex === -1 && decodedId.startsWith('backup_')) {
+                const timestamp = decodedId.substring(7);
+                foundEventIndex = this.config.events.findIndex(e => 
+                    e.type === 'backup' && 
+                    (e.name && e.name.includes(timestamp) || e.id && e.id.includes(timestamp))
+                );
+            }
+            
+            // Strategy 4: Match by partial ID
+            if (foundEventIndex === -1) {
+                foundEventIndex = this.config.events.findIndex(e => 
+                    e.type === 'backup' && e.id && e.id.includes(decodedId)
+                );
+            }
+            
+            // Strategy 5: Match description in params
+            if (foundEventIndex === -1) {
+                foundEventIndex = this.config.events.findIndex(e => 
+                    e.type === 'backup' && 
+                    e.params && e.params.length > 0 && 
+                    e.params[0] && e.params[0].replace(/[^a-zA-Z0-9-_]/g, '_') === decodedId
+                );
+            }
+            
+            // If we still haven't found it, try again with just the digit part
+            if (foundEventIndex === -1) {
+                const digitMatch = decodedId.match(/(\d+)/);
+                if (digitMatch && digitMatch[1]) {
+                    const digits = digitMatch[1];
+                    foundEventIndex = this.config.events.findIndex(e =>
+                        e.type === 'backup' && (
+                            (e.id && e.id.includes(digits)) || 
+                            (e.name && e.name.includes(digits))
+                        )
+                    );
+                }
+            }
+            
+            if (foundEventIndex === -1) {
                 this.log.log(LogLevel.ERROR, `No backup schedule found with ID: ${decodedId}`);
                 return Promise.resolve(false);
             }
             
-            // Debug: Log the event being deleted
-            this.log.log(LogLevel.DEBUG, `Deleting event at index ${eventIndex}: ${JSON.stringify(this.config.events[eventIndex])}`);
+            const eventToDelete = this.config.events[foundEventIndex];
+            this.log.log(LogLevel.DEBUG, `Found event to delete: ${JSON.stringify(eventToDelete)}`);
             
             // Remove the event
-            this.config.events.splice(eventIndex, 1);
+            this.config.events.splice(foundEventIndex, 1);
             
             // Save changes to the config file
             this.saveConfig();
             
-            this.log.log(LogLevel.INFO, `Successfully deleted backup schedule with ID: ${decodedId}`);
+            this.log.log(LogLevel.INFO, `Successfully deleted backup schedule with index ${foundEventIndex}`);
             return Promise.resolve(true);
         } catch (error) {
             this.log.log(LogLevel.ERROR, `Failed to delete backup schedule with ID: ${scheduleId}`, error);

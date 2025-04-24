@@ -376,6 +376,14 @@ export class Interface extends IService {
                 params: [{ name: 'id' }],
                 action: (req, params) => this.manager.deleteBackupSchedule(params.id),
             })],
+            
+            // Add a POST version of deleteBackupSchedule for clients that have issues with DELETE
+            ['deletebackupschedule-post', RequestTemplate.build({
+                method: 'post',
+                level: 'manage',
+                params: [{ name: 'id' }],
+                action: (req, params) => this.manager.deleteBackupSchedule(params.id),
+            })],
             ['deletebackupschedulepost', RequestTemplate.build({
                 method: 'post',
                 level: 'manage',
