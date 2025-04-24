@@ -340,11 +340,17 @@ export class Manager {
                 return Promise.resolve(false);
             }
             
-            // Find the event with matching ID (normalized name)
-            const event = this.config.events.find(e => 
-                e.type === 'backup' && 
-                e.name.replace(/[^a-zA-Z0-9-_]/g, '_') === schedule.id
-            );
+            // Find the event with matching ID - look for either direct ID or normalized name
+            const event = this.config.events.find(e => {
+                if (e.type !== 'backup') return false;
+                
+                // Try direct ID match if available
+                if (e.id === schedule.id) return true;
+                
+                // Try legacy normalized name match
+                const normalizedName = e.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+                return normalizedName === schedule.id;
+            });
             
             if (!event) {
                 this.log.log(LogLevel.ERROR, `No backup schedule found with ID: ${schedule.id}`);
@@ -353,6 +359,9 @@ export class Manager {
             
             // Update the event
             event.cron = schedule.enabled ? schedule.cronExpression : undefined;
+            
+            // Store the ID to ensure future lookups work
+            event.id = schedule.id;
             
             // Update description if provided
             if (schedule.description !== undefined) {
@@ -377,11 +386,17 @@ export class Manager {
                 return Promise.resolve(false);
             }
             
-            // Find the index of the event with matching ID (normalized name)
-            const eventIndex = this.config.events.findIndex(e => 
-                e.type === 'backup' && 
-                e.name.replace(/[^a-zA-Z0-9-_]/g, '_') === scheduleId
-            );
+            // Find the index of the event - look for either matching ID directly or normalized name
+            const eventIndex = this.config.events.findIndex(e => {
+                if (e.type !== 'backup') return false;
+                
+                // Try direct ID match if available
+                if (e.id === scheduleId) return true;
+                
+                // Try legacy normalized name match
+                const normalizedName = e.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+                return normalizedName === scheduleId;
+            });
             
             if (eventIndex === -1) {
                 this.log.log(LogLevel.ERROR, `No backup schedule found with ID: ${scheduleId}`);
