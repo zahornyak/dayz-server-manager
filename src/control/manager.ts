@@ -412,6 +412,9 @@ export class Manager {
                 return Promise.resolve(false);
             }
             
+            // Ensure scheduleId is properly formatted - handle URL encoding issues
+            const decodedId = decodeURIComponent(scheduleId);
+            
             // Debug: Log all backup events to see what we're working with
             const backupEvents = this.config.events.filter(e => e.type === 'backup');
             this.log.log(LogLevel.DEBUG, `Found ${backupEvents.length} backup events`);
@@ -424,22 +427,29 @@ export class Manager {
                 if (e.type !== 'backup') return false;
                 
                 // Try direct ID match if available
-                if (e.id === scheduleId) {
-                    this.log.log(LogLevel.DEBUG, `Direct ID match found for ${scheduleId}`);
+                if (e.id === decodedId) {
+                    this.log.log(LogLevel.DEBUG, `Direct ID match found for ${decodedId}`);
                     return true;
                 }
                 
                 // Try legacy normalized name match
                 const normalizedName = e.name.replace(/[^a-zA-Z0-9-_]/g, '_');
-                const nameMatch = normalizedName === scheduleId;
+                const nameMatch = normalizedName === decodedId;
                 if (nameMatch) {
-                    this.log.log(LogLevel.DEBUG, `Normalized name match found for ${scheduleId} (${normalizedName})`);
+                    this.log.log(LogLevel.DEBUG, `Normalized name match found for ${decodedId} (${normalizedName})`);
                 }
+                
+                // Try matching by backup_[timestamp] pattern
+                if (decodedId.startsWith('backup_') && e.name.includes(decodedId.substring(7))) {
+                    this.log.log(LogLevel.DEBUG, `Timestamp match found for ${decodedId} in name: ${e.name}`);
+                    return true;
+                }
+                
                 return nameMatch;
             });
             
             if (eventIndex === -1) {
-                this.log.log(LogLevel.ERROR, `No backup schedule found with ID: ${scheduleId}`);
+                this.log.log(LogLevel.ERROR, `No backup schedule found with ID: ${decodedId}`);
                 return Promise.resolve(false);
             }
             
@@ -452,7 +462,7 @@ export class Manager {
             // Save changes to the config file
             this.saveConfig();
             
-            this.log.log(LogLevel.INFO, `Successfully deleted backup schedule with ID: ${scheduleId}`);
+            this.log.log(LogLevel.INFO, `Successfully deleted backup schedule with ID: ${decodedId}`);
             return Promise.resolve(true);
         } catch (error) {
             this.log.log(LogLevel.ERROR, `Failed to delete backup schedule with ID: ${scheduleId}`, error);

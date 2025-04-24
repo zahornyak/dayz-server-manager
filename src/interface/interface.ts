@@ -296,6 +296,11 @@ export class Interface extends IService {
                 level: 'manage',
                 action: () => this.backup.createBackup([]),
             })],
+            ['backup', RequestTemplate.build({
+                method: 'post',
+                level: 'manage',
+                action: () => this.backup.createBackup([]),
+            })],
             ['getbackups', RequestTemplate.build({
                 method: 'get',
                 level: 'manage',
