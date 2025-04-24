@@ -412,22 +412,39 @@ export class Manager {
                 return Promise.resolve(false);
             }
             
+            // Debug: Log all backup events to see what we're working with
+            const backupEvents = this.config.events.filter(e => e.type === 'backup');
+            this.log.log(LogLevel.DEBUG, `Found ${backupEvents.length} backup events`);
+            backupEvents.forEach((event, index) => {
+                this.log.log(LogLevel.DEBUG, `Event ${index}: name=${event.name}, id=${event.id || 'undefined'}, normalized=${event.name.replace(/[^a-zA-Z0-9-_]/g, '_')}`);
+            });
+            
             // Find the index of the event - look for either matching ID directly or normalized name
             const eventIndex = this.config.events.findIndex(e => {
                 if (e.type !== 'backup') return false;
                 
                 // Try direct ID match if available
-                if (e.id === scheduleId) return true;
+                if (e.id === scheduleId) {
+                    this.log.log(LogLevel.DEBUG, `Direct ID match found for ${scheduleId}`);
+                    return true;
+                }
                 
                 // Try legacy normalized name match
                 const normalizedName = e.name.replace(/[^a-zA-Z0-9-_]/g, '_');
-                return normalizedName === scheduleId;
+                const nameMatch = normalizedName === scheduleId;
+                if (nameMatch) {
+                    this.log.log(LogLevel.DEBUG, `Normalized name match found for ${scheduleId} (${normalizedName})`);
+                }
+                return nameMatch;
             });
             
             if (eventIndex === -1) {
                 this.log.log(LogLevel.ERROR, `No backup schedule found with ID: ${scheduleId}`);
                 return Promise.resolve(false);
             }
+            
+            // Debug: Log the event being deleted
+            this.log.log(LogLevel.DEBUG, `Deleting event at index ${eventIndex}: ${JSON.stringify(this.config.events[eventIndex])}`);
             
             // Remove the event
             this.config.events.splice(eventIndex, 1);

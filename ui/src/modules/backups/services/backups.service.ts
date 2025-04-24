@@ -73,7 +73,7 @@ export class BackupsService {
     public async createBackup(): Promise<boolean> {
         console.log('BackupsService: Calling API to create backup');
         try {
-            const result = await this.http.post('api/backup', {}, { 
+            const result = await this.http.post('api/createbackup', {}, { 
                 headers: this.auth.getAuthHeaders(),
                 responseType: 'text'
             }).toPromise();
@@ -275,4 +275,4 @@ export class BackupsService {
         }
         return String(error);
     }
-} 
+}
