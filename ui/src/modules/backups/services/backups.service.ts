@@ -73,16 +73,24 @@ export class BackupsService {
     public async createBackup(): Promise<boolean> {
         console.log('BackupsService: Calling API to create backup');
         try {
-            const result = await this.http.post('api/createbackup', {}, { 
-                headers: this.auth.getAuthHeaders(),
-                responseType: 'text'
-            }).toPromise();
-            console.log('BackupsService: Raw API response for createBackup:', result);
-            console.log('BackupsService: Response type:', typeof result);
-            console.log('BackupsService: String representation:', String(result));
-            
-            // Force return true since we know the backup is being created
-            return true;
+            // Try both endpoints to ensure backup creation works
+            try {
+                const result = await this.http.post('api/createbackup', {}, { 
+                    headers: this.auth.getAuthHeaders(),
+                    responseType: 'text'
+                }).toPromise();
+                console.log('BackupsService: Success using createbackup endpoint');
+                return true;
+            } catch (primaryError) {
+                console.error('BackupsService: Primary endpoint failed, trying fallback endpoint');
+                // Try fallback endpoint
+                const result = await this.http.post('api/backup', {}, { 
+                    headers: this.auth.getAuthHeaders(),
+                    responseType: 'text'
+                }).toPromise();
+                console.log('BackupsService: Success using backup endpoint');
+                return true;
+            }
         } catch (error) {
             console.error('BackupsService: Error in createBackup:', this.formatHttpError(error));
             throw error;
@@ -243,12 +251,26 @@ export class BackupsService {
     public async deleteBackupSchedule(scheduleId: string): Promise<boolean> {
         console.log(`BackupsService: Calling API to delete backup schedule ${scheduleId}`);
         try {
-            const result = await this.http.delete<boolean>(`api/deletebackupschedule`, {
-                headers: this.auth.getAuthHeaders(),
-                params: { id: scheduleId }
-            }).toPromise();
-            console.log('BackupsService: API response for deleteBackupSchedule:', result);
-            return result;
+            // First try with query params
+            try {
+                const result = await this.http.delete<boolean>(`api/deletebackupschedule`, {
+                    headers: this.auth.getAuthHeaders(),
+                    params: { id: scheduleId }
+                }).toPromise();
+                console.log('BackupsService: Successfully deleted backup schedule with query params');
+                return result;
+            } catch (paramError) {
+                console.error('BackupsService: Failed to delete with query params, trying with request body');
+                
+                // Try alternate approach with request body - will require special handling on server
+                const result = await this.http.post<boolean>(`api/deletebackupschedule`, {
+                    id: scheduleId
+                }, {
+                    headers: this.auth.getAuthHeaders()
+                }).toPromise();
+                console.log('BackupsService: Successfully deleted backup schedule with request body');
+                return result;
+            }
         } catch (error) {
             console.error('BackupsService: Error in deleteBackupSchedule:', this.formatHttpError(error));
             throw error;

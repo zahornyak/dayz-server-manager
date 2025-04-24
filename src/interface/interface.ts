@@ -376,6 +376,12 @@ export class Interface extends IService {
                 params: [{ name: 'id' }],
                 action: (req, params) => this.manager.deleteBackupSchedule(params.id),
             })],
+            ['deletebackupschedulepost', RequestTemplate.build({
+                method: 'post',
+                level: 'manage',
+                params: [{ name: 'id' }],
+                action: (req, params) => this.manager.deleteBackupSchedule(params.id),
+            })],
             ['disablebackupschedule', RequestTemplate.build({
                 method: 'post',
                 level: 'manage',
