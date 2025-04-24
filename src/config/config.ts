@@ -390,6 +390,12 @@ export class Event {
      * optional params, e.g. the message
      */
     public params?: string[] | null;
+    
+    /**
+     * Unique identifier for the event
+     * Used primarily for backup schedules
+     */
+    public id?: string;
 
 }
 
