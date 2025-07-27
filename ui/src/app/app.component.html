@@ -1,1 +1,145 @@
-<router-outlet></router-outlet>
+<mat-sidenav-container class="sidenav-container" [class.dark-theme]="(darkMode$ | async)">
+  <!-- Sidebar Navigation -->
+  <mat-sidenav #drawer class="sidenav" fixedInViewport
+               [attr.role]="(isHandset$ | async) ? 'dialog' : 'navigation'"
+               [mode]="(isHandset$ | async) ? 'over' : 'side'"
+               [opened]="(isHandset$ | async) === false && (sidenavOpen$ | async)">
+    
+    <!-- Sidebar Header -->
+    <div class="sidenav-header">
+      <mat-toolbar color="primary">
+        <span class="logo">
+          <mat-icon>dns</mat-icon>
+          DayZ Server Manager
+        </span>
+      </mat-toolbar>
+    </div>
+
+    <!-- Server Selector -->
+    <div class="server-selector" *ngIf="servers$ | async as servers">
+      <mat-form-field appearance="fill" class="full-width">
+        <mat-label>Select Server</mat-label>
+        <mat-select [(value)]="selectedServerId" (selectionChange)="onServerSelect($event.value)">
+          <mat-option value="">All Servers</mat-option>
+          <mat-option *ngFor="let server of servers" [value]="server.id">
+            <div class="server-option">
+              <span class="server-name">{{server.name}}</span>
+              <mat-icon [class]="'status-' + server.status">circle</mat-icon>
+            </div>
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <!-- Navigation Menu -->
+    <mat-nav-list class="nav-list">
+      <a mat-list-item routerLink="/dashboard" routerLinkActive="active">
+        <mat-icon matListItemIcon>dashboard</mat-icon>
+        <span matListItemTitle>Dashboard</span>
+      </a>
+      
+      <a mat-list-item routerLink="/servers" routerLinkActive="active">
+        <mat-icon matListItemIcon>dns</mat-icon>
+        <span matListItemTitle>Servers</span>
+        <span matListItemMeta class="server-count">{{(servers$ | async)?.length || 0}}</span>
+      </a>
+      
+      <a mat-list-item routerLink="/players" routerLinkActive="active">
+        <mat-icon matListItemIcon>group</mat-icon>
+        <span matListItemTitle>Players</span>
+        <span matListItemMeta class="player-count">{{totalPlayerCount$ | async}}</span>
+      </a>
+      
+      <a mat-list-item routerLink="/monitoring" routerLinkActive="active">
+        <mat-icon matListItemIcon>monitoring</mat-icon>
+        <span matListItemTitle>Monitoring</span>
+      </a>
+      
+      <a mat-list-item routerLink="/map" routerLinkActive="active">
+        <mat-icon matListItemIcon>map</mat-icon>
+        <span matListItemTitle>Live Map</span>
+      </a>
+      
+      <a mat-list-item routerLink="/logs" routerLinkActive="active">
+        <mat-icon matListItemIcon>article</mat-icon>
+        <span matListItemTitle>Logs</span>
+      </a>
+      
+      <mat-divider></mat-divider>
+      
+      <a mat-list-item routerLink="/settings" routerLinkActive="active">
+        <mat-icon matListItemIcon>settings</mat-icon>
+        <span matListItemTitle>Settings</span>
+      </a>
+    </mat-nav-list>
+
+    <!-- Add Server Button -->
+    <div class="sidenav-footer">
+      <button mat-raised-button color="accent" class="add-server-btn" (click)="openAddServerDialog()">
+        <mat-icon>add</mat-icon>
+        Add Server
+      </button>
+    </div>
+  </mat-sidenav>
+
+  <!-- Main Content -->
+  <mat-sidenav-content>
+    <!-- Top Toolbar -->
+    <mat-toolbar color="primary" class="top-toolbar">
+      <button type="button" aria-label="Toggle sidenav" mat-icon-button 
+              (click)="toggleSidenav()">
+        <mat-icon aria-label="Side nav toggle icon">menu</mat-icon>
+      </button>
+      
+      <span class="toolbar-title">{{currentTitle$ | async}}</span>
+      
+      <span class="spacer"></span>
+      
+      <!-- Server Status Indicator -->
+      <div class="server-status" *ngIf="selectedServer$ | async as server">
+        <mat-chip-set>
+          <mat-chip [class]="'status-chip status-' + server.status">
+            <mat-icon matChipIcon>{{getStatusIcon(server.status)}}</mat-icon>
+            {{server.name}} - {{server.status | titlecase}}
+          </mat-chip>
+        </mat-chip-set>
+      </div>
+      
+      <!-- Notifications -->
+      <button mat-icon-button [matMenuTriggerFor]="notificationMenu" 
+              [matBadge]="unreadNotificationCount$ | async" 
+              [matBadgeHidden]="(unreadNotificationCount$ | async) === 0"
+              matBadgeColor="warn">
+        <mat-icon>notifications</mat-icon>
+      </button>
+      
+      <mat-menu #notificationMenu="matMenu" class="notification-menu">
+        <h6 mat-menu-item disabled>Recent Notifications</h6>
+        <mat-divider></mat-divider>
+        <div *ngFor="let notification of recentNotifications$ | async" class="notification-item">
+          <button mat-menu-item (click)="markAsRead(notification.id)">
+            <mat-icon [class]="'notification-' + notification.type">{{getNotificationIcon(notification.type)}}</mat-icon>
+            <div class="notification-content">
+              <div class="notification-title">{{notification.title}}</div>
+              <div class="notification-message">{{notification.message}}</div>
+              <div class="notification-time">{{notification.timestamp | date:'short'}}</div>
+            </div>
+          </button>
+        </div>
+      </mat-menu>
+      
+      <!-- Theme Toggle -->
+      <button mat-icon-button (click)="toggleTheme()">
+        <mat-icon>{{(darkMode$ | async) ? 'light_mode' : 'dark_mode'}}</mat-icon>
+      </button>
+    </mat-toolbar>
+
+    <!-- Loading Indicator -->
+    <mat-progress-bar mode="indeterminate" *ngIf="loading$ | async"></mat-progress-bar>
+
+    <!-- Router Outlet -->
+    <main class="main-content">
+      <router-outlet></router-outlet>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

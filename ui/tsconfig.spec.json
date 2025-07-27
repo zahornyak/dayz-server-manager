@@ -1,18 +1,14 @@
+/* To learn more about this file see: https://angular.io/config/tsconfig. */
 {
-    "compilerOptions": {
-        "outDir": "./out-tsc/spec",
-        "types": [
-            "jasmine",
-            "node"
-        ]
-    },
-    "extends": "./tsconfig.json",
-    "files": [
-        "src/test.ts",
-        "src/polyfills.ts"
-    ],
-    "include": [
-        "src/**/*.spec.ts",
-        "src/**/*.d.ts"
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/spec",
+    "types": [
+      "jasmine"
     ]
+  },
+  "include": [
+    "src/**/*.spec.ts",
+    "src/**/*.d.ts"
+  ]
 }

@@ -1,0 +1,256 @@
+.dashboard-container {
+  max-width: 1400px;
+  margin: 0 auto;
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 500;
+    margin-bottom: 2rem;
+    color: #1976d2;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    color: #333;
+  }
+}
+
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+
+  .stat-card {
+    .mat-mdc-card-header {
+      .mat-mdc-card-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1rem;
+        font-weight: 500;
+        color: #666;
+
+        mat-icon {
+          color: #1976d2;
+        }
+      }
+    }
+
+    .mat-mdc-card-content {
+      .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1976d2;
+        margin-top: 0.5rem;
+
+        &.success {
+          color: #4caf50;
+        }
+
+        &.warning {
+          color: #ff9800;
+        }
+
+        &.error {
+          color: #f44336;
+        }
+      }
+    }
+  }
+}
+
+.server-overview-card {
+  margin-bottom: 2rem;
+
+  .mat-mdc-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    .header-actions {
+      button {
+        mat-icon {
+          margin-right: 0.5rem;
+        }
+      }
+    }
+  }
+
+  .table-container {
+    overflow-x: auto;
+    margin-top: 1rem;
+
+    .servers-table {
+      width: 100%;
+      min-width: 800px;
+
+      .server-info {
+        .server-details {
+          font-size: 0.875rem;
+          color: #666;
+          margin-top: 0.25rem;
+        }
+      }
+
+      .player-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+
+        .player-count {
+          font-weight: 500;
+        }
+
+        .player-progress {
+          width: 80px;
+          height: 4px;
+        }
+      }
+
+      mat-chip {
+        &.status-online {
+          background-color: rgba(76, 175, 80, 0.2);
+          color: #4caf50;
+        }
+
+        &.status-offline {
+          background-color: rgba(244, 67, 54, 0.2);
+          color: #f44336;
+        }
+
+        &.status-connecting {
+          background-color: rgba(255, 152, 0, 0.2);
+          color: #ff9800;
+        }
+
+        &.status-error {
+          background-color: rgba(244, 67, 54, 0.2);
+          color: #f44336;
+        }
+      }
+
+      .mat-mdc-header-cell {
+        font-weight: 600;
+        color: #333;
+      }
+
+      .mat-mdc-cell {
+        padding: 1rem 0.5rem;
+      }
+    }
+  }
+}
+
+.quick-actions {
+  .action-buttons {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+
+    button {
+      mat-icon {
+        margin-right: 0.5rem;
+      }
+    }
+  }
+}
+
+// Dark theme support
+.dark-theme {
+  .dashboard-container {
+    h1, h2 {
+      color: #bb86fc;
+    }
+  }
+
+  .stat-card {
+    background-color: #1e1e1e;
+
+    .mat-mdc-card-title {
+      color: #ffffff;
+    }
+
+    .stat-number {
+      color: #bb86fc;
+
+      &.success {
+        color: #4caf50;
+      }
+
+      &.warning {
+        color: #ff9800;
+      }
+
+      &.error {
+        color: #f44336;
+      }
+    }
+  }
+
+  .server-overview-card {
+    background-color: #1e1e1e;
+
+    .mat-mdc-card-title {
+      color: #ffffff;
+    }
+
+    .servers-table {
+      .server-details {
+        color: #aaa;
+      }
+
+      .mat-mdc-header-cell {
+        color: #ffffff;
+      }
+
+      .mat-mdc-cell {
+        color: #ffffff;
+      }
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .dashboard-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .table-container {
+    .servers-table {
+      min-width: 600px;
+    }
+  }
+
+  .action-buttons {
+    button {
+      flex: 1;
+      min-width: 120px;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-container {
+    h1 {
+      font-size: 1.5rem;
+    }
+  }
+
+  .stat-card {
+    .stat-number {
+      font-size: 2rem;
+    }
+  }
+
+  .action-buttons {
+    flex-direction: column;
+
+    button {
+      width: 100%;
+    }
+  }
+}
